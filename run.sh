@@ -58,7 +58,10 @@ QEMU_BUILD="$QEMU_ROOT/build"
 QEMU_EXECUTABLE="$QEMU_BUILD/qemu-system-riscv64"
 
 ESP_SOC="$ESP_ROOT/socs/xilinx-vcu118-xcvu9p"
-ESP_LINUX_IMAGE="$ESP_SOC/soft-build/ariane/linux-build/arch/riscv/boot/Image"
+ESP_LINUX_ARIANE_ROOT="$ESP_ROOT/soft/ariane/linux"
+ESP_LINUX_ARIANE_BUILD="$ESP_SOC/soft-build/ariane/linux-build"
+ESP_LINUX_ARIANE_CONFIG="$ESP_LINUX_ARIANE_BUILD/.config"
+ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 ESP_DTB="$QEMU_ROOT/riscv.dtb"
 
@@ -85,12 +88,29 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEMU_EXECUTABLE" ]]; then
     cd "$QEMU_ROOT"
 fi
 
-if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
+REBUILD_LINUX=0
+if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
     cd "$ESP_SOC"
+
     export PATH="$RISCV_TOOLCHAIN_PATH/bin:$PATH"
     export RISCV="$RISCV_TOOLCHAIN_PATH"
     export ESP_ROOT="$ESP_ROOT"
+
+    if [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
+        REBUILD_LINUX=1
+    else
+        cd "$ESP_LINUX_ARIANE_ROOT"
+        ./scripts/config --file "$ESP_LINUX_ARIANE_CONFIG" -e SERIAL_8250 -e SERIAL_8250_CONSOLE -e SERIAL_OF_PLATFORM -e SERIAL_EARLYCON -e SERIAL_EARLYCON_RISCV_SBI -e HVC_DRIVER -e HVC_RISCV_SBI
+    fi
+
     make linux -j `nproc`
+
+    if [[ $REBUILD_LINUX -eq 1 ]]; then
+        cd "$ESP_LINUX_ARIANE_ROOT"
+        ./scripts/config --file "$ESP_LINUX_ARIANE_CONFIG" -e SERIAL_8250 -e SERIAL_8250_CONSOLE -e SERIAL_OF_PLATFORM -e SERIAL_EARLYCON -e SERIAL_EARLYCON_RISCV_SBI -e HVC_DRIVER -e HVC_RISCV_SBI
+        cd "$ESP_SOC"
+        make linux -j `nproc`
+    fi
 fi
 
 QEMU_ARGS=()
