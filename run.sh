@@ -3,6 +3,7 @@
 REBUILD_QEMU=0
 REBUILD_ESP=0
 QEMU_STDIO=0
+RUN_WITH_GDB=0
 
 QEMU_ROOT="$PWD"
 # RISCV_TOOLCHAIN_PATH="$HOME/riscv"
@@ -40,6 +41,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --nographic)
             QEMU_STDIO=1
+            shift
+            ;;
+        --gdb)
+            RUN_WITH_GDB=1
             shift
             ;;
         *)
@@ -88,7 +93,13 @@ if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FI
     make linux -j `nproc`
 fi
 
-QEMU_ARGS=(
+QEMU_ARGS=()
+
+if [[ $RUN_WITH_GDB -eq 1 ]]; then
+    QEMU_ARGS+=("gdb" "--args")
+fi
+
+QEMU_ARGS+=(
     "$QEMU_EXECUTABLE"
     "-machine" "virt"
     "-m" "512M"
