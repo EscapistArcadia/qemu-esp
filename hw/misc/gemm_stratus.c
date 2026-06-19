@@ -1,11 +1,22 @@
 #include "hw/misc/gemm_stratus.h"
+#include "hw/core/sysbus.h"
+#include "qapi/error.h"
 
 #ifndef GEMM_STRATUS_DEBUG
 #define GEMM_STRATUS_DEBUG 1
 #endif
 
-#define CMD_REG 0x00
-#define STATUS_REG 0x04
+DeviceState *gemm_stratus_create(void) {
+    DeviceState *dev = qdev_new(TYPE_GEMM_STRATUS);
+    SysBusDevice *sbdev = SYS_BUS_DEVICE(dev);
+    
+    sysbus_realize(sbdev, &error_fatal);
+
+    // sysbus_connect_irq(sbdev, 0, GEMM_STRATUS(dev)->irq);
+    // TODO: check the necessity of the above line
+
+    return dev;
+}
 
 static uint64_t gemm_stratus_mmio_read(void *opaque, hwaddr addr, unsigned size) {
     return -1;
