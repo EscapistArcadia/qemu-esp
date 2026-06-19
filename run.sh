@@ -10,6 +10,7 @@ RUN_WITH_GDB=0
 QEMU_ROOT="$PWD"
 RISCV_TOOLCHAIN_PATH="$HOME/riscv"
 ESP_ROOT="$HOME/esp_virtuoso"
+GDB_COMMANDS=()
 
 while [[ $# -gt 0 ]]; do
     key=$1
@@ -89,6 +90,11 @@ while [[ $# -gt 0 ]]; do
         --gdb)
             RUN_WITH_GDB=1
             shift
+
+            while [[ $# -gt 0 && ! "$1" == --* ]]; do
+                GDB_COMMANDS+=("$1")
+                shift
+            done
             ;;
         *)
             echo "Unknown option: $key"
@@ -114,8 +120,6 @@ ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
 ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 ESP_DTB="$QEMU_ROOT/riscv.dtb"
-
-export PATH="$HOME/riscv/bin:$PATH" # involve the built riscv toolchain
 
 if [[ ! -d "$ESP_ROOT" ]]; then
     echo "Error: ESP_ROOT directory does not exist: $ESP_ROOT"
@@ -196,7 +200,13 @@ fi
 QEMU_ARGS=()
 
 if [[ $RUN_WITH_GDB -eq 1 ]]; then
-    QEMU_ARGS+=("gdb" "--args")
+    QEMU_ARGS+=("gdb")
+
+    for ex in "${GDB_COMMANDS[@]}"; do
+        QEMU_ARGS+=(-ex "$ex")
+    done
+
+    QEMU_ARGS+=("--args")
 fi
 
 QEMU_ARGS+=(
@@ -220,4 +230,6 @@ if [[ $QEMU_STDIO -eq 1 ]]; then
 fi
 
 echo "${QEMU_ARGS[@]}"
+
+export DEBUGINFOD_URLS=
 "${QEMU_ARGS[@]}"
