@@ -31,6 +31,39 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             ;;
+        --dts)
+            if [[ $# -gt 1 ]]; then
+                if [[ -v DTB ]]; then
+                    echo "Warning: --dtb option overrides --dts option. Using DTB file: $DTB"
+                else
+                    DTS=$(realpath "$2")
+                fi
+                if [[ ! -f "$DTS" ]]; then
+                    echo "Error: DTS file does not exist: $DTS"
+                    exit 1
+                fi
+            else
+                echo "Error: --dts option requires an argument."
+                exit 1
+            fi
+            shift 2
+            ;;
+        --dtb)
+            if [[ $# -gt 1 ]]; then
+                DTB=$(realpath "$2")
+                if [[ -v DTS ]]; then
+                    unset DTS
+                    echo "Warning: --dtb option overrides --dts option. Using DTB file: $DTB"
+                elif [[ ! -f "$DTB" ]]; then
+                    echo "Error: DTB file does not exist: $DTB"
+                    exit 1
+                fi
+            else
+                echo "Error: --dtb option requires an argument."
+                exit 1
+            fi
+            shift 2
+            ;;
         --rebuild-qemu)
             REBUILD_QEMU=1
             shift
@@ -53,6 +86,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ ! -v DTB ]] && [[ ! -v DTS ]]; then
+    echo "Error: Either --dtb or --dts option must be provided."
+    DTB="$QEMU_ROOT/riscv.dtb"
+fi
 
 QEMU_BUILD="$QEMU_ROOT/build"
 QEMU_EXECUTABLE="$QEMU_BUILD/qemu-system-riscv64"
@@ -113,6 +151,11 @@ if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FI
     fi
 fi
 
+if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
+    DTB=$(basename "$DTS" .dts).dtb
+    dtc -I dts -O dtb "$DTS" > "$DTB"
+fi
+
 QEMU_ARGS=()
 
 if [[ $RUN_WITH_GDB -eq 1 ]]; then
@@ -127,7 +170,7 @@ QEMU_ARGS+=(
     "-bios" "default"
     "-kernel" "$ESP_LINUX_IMAGE"
     "-initrd" "$ESP_FILESYS_IMAGE"
-    "-dtb" "$ESP_DTB"
+    "-dtb" "$DTB"
     "-append" "console=ttyS0,115200 rdinit=/init"
 )
 
