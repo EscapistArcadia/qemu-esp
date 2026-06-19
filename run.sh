@@ -6,8 +6,8 @@ QEMU_STDIO=0
 RUN_WITH_GDB=0
 
 QEMU_ROOT="$PWD"
-# RISCV_TOOLCHAIN_PATH="$HOME/riscv"
-# ESP_ROOT="$HOME/esp_virtuoso"
+RISCV_TOOLCHAIN_PATH="$HOME/riscv"
+ESP_ROOT="$HOME/esp_virtuoso"
 
 while [[ $# -gt 0 ]]; do
     key=$1
@@ -100,6 +100,8 @@ ESP_LINUX_ARIANE_ROOT="$ESP_ROOT/soft/ariane/linux"
 ESP_LINUX_ARIANE_BUILD="$ESP_SOC/soft-build/ariane/linux-build"
 ESP_LINUX_ARIANE_CONFIG="$ESP_LINUX_ARIANE_BUILD/.config"
 ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
+ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
+ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 ESP_DTB="$QEMU_ROOT/riscv.dtb"
 
@@ -134,18 +136,33 @@ if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FI
     export RISCV="$RISCV_TOOLCHAIN_PATH"
     export ESP_ROOT="$ESP_ROOT"
 
+    CONFIG_ARGS=(
+        "$ESP_LINUX_ARIANE_ROOT/scripts/config"
+        "--file" "$ESP_LINUX_ARIANE_CONFIG"
+        "-e" "SERIAL_8250"
+        "-e" "SERIAL_8250_CONSOLE"
+        "-e" "SERIAL_OF_PLATFORM"
+        "-e" "SERIAL_EARLYCON"
+        "-e" "SERIAL_EARLYCON_RISCV_SBI"
+        "-e" "HVC_DRIVER"
+        "-e" "HVC_RISCV_SBI"
+        "-e" "DEBUG_INFO"
+    )
+
     if [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
         REBUILD_LINUX=1
     else
+        echo "cd $ESP_LINUX_ARIANE_ROOT && ${CONFIG_ARGS[@]}"
         cd "$ESP_LINUX_ARIANE_ROOT"
-        ./scripts/config --file "$ESP_LINUX_ARIANE_CONFIG" -e SERIAL_8250 -e SERIAL_8250_CONSOLE -e SERIAL_OF_PLATFORM -e SERIAL_EARLYCON -e SERIAL_EARLYCON_RISCV_SBI -e HVC_DRIVER -e HVC_RISCV_SBI
+        "${CONFIG_ARGS[@]}"
+        cd "$ESP_SOC"
     fi
 
     make linux -j `nproc`
 
     if [[ $REBUILD_LINUX -eq 1 ]]; then
         cd "$ESP_LINUX_ARIANE_ROOT"
-        ./scripts/config --file "$ESP_LINUX_ARIANE_CONFIG" -e SERIAL_8250 -e SERIAL_8250_CONSOLE -e SERIAL_OF_PLATFORM -e SERIAL_EARLYCON -e SERIAL_EARLYCON_RISCV_SBI -e HVC_DRIVER -e HVC_RISCV_SBI
+        "${CONFIG_ARGS[@]}"
         cd "$ESP_SOC"
         make linux -j `nproc`
     fi
@@ -168,10 +185,11 @@ QEMU_ARGS+=(
     "-m" "512M"
     "-smp" "1"
     "-bios" "default"
+    # "-bios" "$ESP_OPENSBI_FIRMWARE"
     "-kernel" "$ESP_LINUX_IMAGE"
     "-initrd" "$ESP_FILESYS_IMAGE"
     "-dtb" "$DTB"
-    "-append" "console=ttyS0,115200 rdinit=/init"
+    "-append" "\"console=ttyS0,115200\""
 )
 
 if [[ $QEMU_STDIO -eq 1 ]]; then
@@ -181,4 +199,5 @@ if [[ $QEMU_STDIO -eq 1 ]]; then
     )
 fi
 
+echo "${QEMU_ARGS[@]}"
 "${QEMU_ARGS[@]}"
