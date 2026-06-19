@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
 REBUILD_QEMU=0
+CLEAN_REBUILD_QEMU=0
 REBUILD_ESP=0
+CLEAN_REBUILD_ESP=0
 QEMU_STDIO=0
 RUN_WITH_GDB=0
 
@@ -72,6 +74,14 @@ while [[ $# -gt 0 ]]; do
             REBUILD_ESP=1
             shift
             ;;
+        --clean-rebuild-qemu)
+            CLEAN_REBUILD_QEMU=1
+            shift
+            ;;
+        --clean-rebuild-esp)
+            CLEAN_REBUILD_ESP=1
+            shift
+            ;;
         --nographic)
             QEMU_STDIO=1
             shift
@@ -112,13 +122,20 @@ if [[ ! -d "$ESP_ROOT" ]]; then
     exit 1
 fi
 
-if [[ $REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEMU_EXECUTABLE" ]]; then
+if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEMU_EXECUTABLE" ]]; then
     if [[ ! -d "$QEMU_BUILD" ]]; then
         mkdir "$QEMU_BUILD"
     fi
     cd "$QEMU_BUILD"
     if [[ ! -f "config.status" ]]; then # check if QEMU has been configured
         ../configure --target-list=riscv64-softmmu --enable-debug
+    fi
+    if [[ $CLEAN_REBUILD_QEMU -eq 1 ]]; then
+        if command -v ninja >/dev/null 2>&1; then
+            ninja clean
+        else
+            make clean
+        fi
     fi
     if command -v ninja >/dev/null 2>&1; then
         ninja qemu-system-riscv64
@@ -129,7 +146,7 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEMU_EXECUTABLE" ]]; then
 fi
 
 REBUILD_LINUX=0
-if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
+if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
     cd "$ESP_SOC"
 
     export PATH="$RISCV_TOOLCHAIN_PATH/bin:$PATH"
@@ -149,7 +166,10 @@ if [[ $REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FI
         "-e" "DEBUG_INFO"
     )
 
-    if [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
+    if [[ $CLEAN_REBUILD_ESP -eq 1 ]]; then
+        REBUILD_LINUX=1
+        make linux-distclean
+    elif [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
         REBUILD_LINUX=1
     else
         echo "cd $ESP_LINUX_ARIANE_ROOT && ${CONFIG_ARGS[@]}"
