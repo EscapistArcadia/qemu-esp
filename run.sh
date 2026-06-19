@@ -126,7 +126,7 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEM
     if [[ ! -d "$QEMU_BUILD" ]]; then
         mkdir "$QEMU_BUILD"
     fi
-    cd "$QEMU_BUILD"
+    pushd "$QEMU_BUILD"
     if [[ ! -f "config.status" ]]; then # check if QEMU has been configured
         ../configure --target-list=riscv64-softmmu --enable-debug
     fi
@@ -142,12 +142,12 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEM
     else
         make -j "$(nproc)"
     fi
-    cd "$QEMU_ROOT"
+    popd
 fi
 
 REBUILD_LINUX=0
 if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
-    cd "$ESP_SOC"
+    pushd "$ESP_SOC"
 
     export PATH="$RISCV_TOOLCHAIN_PATH/bin:$PATH"
     export RISCV="$RISCV_TOOLCHAIN_PATH"
@@ -172,20 +172,20 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
     elif [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
         REBUILD_LINUX=1
     else
-        echo "cd $ESP_LINUX_ARIANE_ROOT && ${CONFIG_ARGS[@]}"
-        cd "$ESP_LINUX_ARIANE_ROOT"
+        pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
-        cd "$ESP_SOC"
+        popd
     fi
 
     make linux -j `nproc`
 
     if [[ $REBUILD_LINUX -eq 1 ]]; then
-        cd "$ESP_LINUX_ARIANE_ROOT"
+        pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
-        cd "$ESP_SOC"
+        popd
         make linux -j `nproc`
     fi
+    popd
 fi
 
 if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
