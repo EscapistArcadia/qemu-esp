@@ -36,14 +36,14 @@ static void gemm_stratus_realize(DeviceState *dev, Error **errp) {
 }
 
 static void gemm_stratus_class_init(ObjectClass *klass, const void *data) {
-    DeviceClass *dc = DEVICE_CLASS(klass);
+    SysBusDeviceClass *sdc = SYS_BUS_DEVICE_CLASS(klass);
 
-    dc->realize = gemm_stratus_realize;
+    sdc->parent_class.realize = gemm_stratus_realize;
 }
 
 static const TypeInfo gemm_stratus_info = {
     .name = TYPE_GEMM_STRATUS,
-    .parent = TYPE_DEVICE,
+    .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(GemmStratusState),
     .class_init = gemm_stratus_class_init,
     .instance_init = gemm_stratus_instance_init,

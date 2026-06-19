@@ -9,7 +9,7 @@
 #define TYPE_GEMM_STRATUS "gemm_stratus"
 
 struct GemmStratusState {
-    DeviceState parent_obj;
+    SysBusDevice parent_obj;
 
     MemoryRegion mmio;
     qemu_irq irq;
