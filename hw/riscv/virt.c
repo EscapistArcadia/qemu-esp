@@ -60,6 +60,7 @@
 #include "qapi/qapi-visit-common.h"
 #include "hw/virtio/virtio-iommu.h"
 #include "hw/uefi/var-service-api.h"
+#include "hw/misc/unimp.h"
 
 /* KVM AIA only supports APLIC MSI. APLIC Wired is always emulated by QEMU. */
 static bool virt_use_kvm_aia_aplic_imsic(RISCVVirtAIAType aia_type)
@@ -1618,6 +1619,9 @@ static void virt_machine_init(MachineState *machine)
 
     s->machine_done.notify = virt_machine_done;
     qemu_add_machine_init_done_notifier(&s->machine_done);
+
+    create_unimplemented_device("esp_greth_unimp", 0xa0000000, 0x200000);
+    create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
 }
 
 static void virt_machine_instance_finalize(Object *obj)
