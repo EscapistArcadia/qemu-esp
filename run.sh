@@ -6,11 +6,14 @@ REBUILD_ESP=0
 CLEAN_REBUILD_ESP=0
 QEMU_STDIO=0
 RUN_WITH_GDB=0
+DEBUG_LINUX=0
+QEMU_GUEST_LINUX=0
 
 QEMU_ROOT="$PWD"
 RISCV_TOOLCHAIN_PATH="$HOME/riscv"
 ESP_ROOT="$HOME/esp_virtuoso"
-GDB_COMMANDS=()
+HOST_GDB_COMMANDS=()
+GUEST_GDB_COMMANDS=()
 
 while [[ $# -gt 0 ]]; do
     key=$1
@@ -87,7 +90,7 @@ while [[ $# -gt 0 ]]; do
             QEMU_STDIO=1
             shift
             ;;
-        --gdb)
+        --gdb-qemu)
             RUN_WITH_GDB=1
             shift
 
@@ -96,17 +99,25 @@ while [[ $# -gt 0 ]]; do
                 shift
             done
             ;;
+        --gdb-linux)
+            QEMU_GUEST_LINUX=1
+            shift
+
+            while [[ $# -gt 0 && ! "$1" == --* ]]; do
+                GUEST_GDB_COMMANDS+=("$1")
+                shift
+            done
+            ;;
+        --debug-linux)
+            DEBUG_LINUX=1
+            shift
+            ;;
         *)
             echo "Unknown option: $key"
             exit 1
             ;;
     esac
 done
-
-if [[ ! -v DTB ]] && [[ ! -v DTS ]]; then
-    echo "Error: Either --dtb or --dts option must be provided."
-    DTB="$QEMU_ROOT/riscv.dtb"
-fi
 
 QEMU_BUILD="$QEMU_ROOT/build"
 QEMU_EXECUTABLE="$QEMU_BUILD/qemu-system-riscv64"
@@ -116,14 +127,44 @@ ESP_LINUX_ARIANE_ROOT="$ESP_ROOT/soft/ariane/linux"
 ESP_LINUX_ARIANE_BUILD="$ESP_SOC/soft-build/ariane/linux-build"
 ESP_LINUX_ARIANE_CONFIG="$ESP_LINUX_ARIANE_BUILD/.config"
 ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
+ESP_LINUX_VMLINUX="$ESP_LINUX_ARIANE_BUILD/vmlinux"
 ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
 ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
-ESP_DTB="$QEMU_ROOT/riscv.dtb"
+# ESP_DTB="$QEMU_ROOT/riscv.dtb"
+
+# Runs RISCV GDB to debug Linux running on QEMU.
+if [[ $QEMU_GUEST_LINUX -eq 1 ]]; then
+    if [[ ! -f "$ESP_LINUX_IMAGE" ]]; then
+        echo "Error: Linux image does not exist: $ESP_LINUX_IMAGE"
+        exit 1
+    fi
+
+    GUEST_GDB_ARGS=(
+        "$RISCV_TOOLCHAIN_PATH/bin/riscv64-unknown-linux-gnu-gdb"
+        "$ESP_LINUX_VMLINUX"
+        "-ex" "target remote localhost:1234"
+        # "-ex" "source $ESP_LINUX_ARIANE_BUILD/vmlinux-gdb.py"
+        # TODO: try to enable python scripts in the custom gdb
+    )
+
+    for cmd in "${GUEST_GDB_COMMANDS[@]}"; do
+        GUEST_GDB_ARGS+=(-ex "$cmd")
+    done
+
+    echo "${GUEST_GDB_ARGS[@]}"
+    "${GUEST_GDB_ARGS[@]}"
+    exit 0
+fi
 
 if [[ ! -d "$ESP_ROOT" ]]; then
     echo "Error: ESP_ROOT directory does not exist: $ESP_ROOT"
     exit 1
+fi
+
+if [[ ! -v DTB ]] && [[ ! -v DTS ]]; then
+    echo "Error: Either --dtb or --dts option must be provided."
+    DTB="$QEMU_ROOT/riscv.dtb"
 fi
 
 if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEMU_EXECUTABLE" ]]; then
@@ -150,6 +191,7 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEM
 fi
 
 REBUILD_LINUX=0
+# Build Linux image and file system image if necessary
 if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
     pushd "$ESP_SOC"
 
@@ -160,6 +202,8 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
     CONFIG_ARGS=(
         "$ESP_LINUX_ARIANE_ROOT/scripts/config"
         "--file" "$ESP_LINUX_ARIANE_CONFIG"
+
+        # Enable NS16550A UART driver for console output inside QEMU
         "-e" "SERIAL_8250"
         "-e" "SERIAL_8250_CONSOLE"
         "-e" "SERIAL_OF_PLATFORM"
@@ -167,7 +211,13 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
         "-e" "SERIAL_EARLYCON_RISCV_SBI"
         "-e" "HVC_DRIVER"
         "-e" "HVC_RISCV_SBI"
+
+        # Enable GDB scripts and debug info for better debugging experience
         "-e" "DEBUG_INFO"
+        "-e" "GDB_SCRIPTS"
+        "-e" "FRAME_POINTER"
+        "-e" "KALLSYMS"
+        "-e" "KALLSYMS_ALL"
     )
 
     if [[ $CLEAN_REBUILD_ESP -eq 1 ]]; then
@@ -192,24 +242,25 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
     popd
 fi
 
+# Generate DTB from DTS if necessary
 if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
     DTB=$(basename "$DTS" .dts).dtb
     dtc -I dts -O dtb "$DTS" > "$DTB"
 fi
 
-QEMU_ARGS=()
+HOST_QEMU_ARGS=()
 
 if [[ $RUN_WITH_GDB -eq 1 ]]; then
-    QEMU_ARGS+=("gdb")
+    HOST_QEMU_ARGS+=("gdb")
 
-    for ex in "${GDB_COMMANDS[@]}"; do
-        QEMU_ARGS+=(-ex "$ex")
+    for ex in "${HOST_GDB_COMMANDS[@]}"; do
+        HOST_QEMU_ARGS+=(-ex "$ex")
     done
 
-    QEMU_ARGS+=("--args")
+    HOST_QEMU_ARGS+=("--args")
 fi
 
-QEMU_ARGS+=(
+HOST_QEMU_ARGS+=(
     "$QEMU_EXECUTABLE"
     "-machine" "virt"
     "-m" "512M"
@@ -223,13 +274,19 @@ QEMU_ARGS+=(
 )
 
 if [[ $QEMU_STDIO -eq 1 ]]; then
-    QEMU_ARGS+=(
+    HOST_QEMU_ARGS+=(
         "-display" "none"
         "-serial" "stdio"
     )
 fi
+if [[ $DEBUG_LINUX -eq 1 ]]; then
+    HOST_QEMU_ARGS+=(
+        "-S" # pause CPU at reset, wait for GDB connection
+        "-s" # shorthand for -gdb tcp::1234
+    )
+fi
 
-echo "${QEMU_ARGS[@]}"
+echo "${HOST_QEMU_ARGS[@]}"
 
 export DEBUGINFOD_URLS=
-"${QEMU_ARGS[@]}"
+"${HOST_QEMU_ARGS[@]}"
