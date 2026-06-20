@@ -14,6 +14,8 @@ RISCV_TOOLCHAIN_PATH="$HOME/riscv"
 ESP_ROOT="$HOME/esp_virtuoso"
 HOST_GDB_COMMANDS=()
 GUEST_GDB_COMMANDS=()
+BOARD_SUFFIX=""
+EXAMPLES=()
 
 while [[ $# -gt 0 ]]; do
     key=$1
@@ -36,6 +38,22 @@ while [[ $# -gt 0 ]]; do
                 echo "Error: --esp option requires an argument."
                 exit 1
             fi
+            ;;
+        --board-suffix)
+            if [[ $# -gt 1 ]]; then
+                BOARD_SUFFIX="$2"
+                shift 2
+            else
+                echo "Error: --board-suffix option requires an argument."
+                exit 1
+            fi
+            ;;
+        --example)
+            shift
+            while [[ $# -gt 0 && ! "$1" == --* ]]; do
+                EXAMPLES+=("$1")
+                shift
+            done
             ;;
         --dts)
             if [[ $# -gt 1 ]]; then
@@ -122,15 +140,24 @@ done
 QEMU_BUILD="$QEMU_ROOT/build"
 QEMU_EXECUTABLE="$QEMU_BUILD/qemu-system-riscv64"
 
-ESP_SOC="$ESP_ROOT/socs/xilinx-vcu118-xcvu9p"
+BOARD_NAME="xilinx-vcu118-xcvu9p"
+BOARD_DIR=$BOARD_NAME
+if [[ -n "$BOARD_SUFFIX" ]]; then
+    BOARD_DIR="${BOARD_NAME}-${BOARD_SUFFIX}"
+fi
+ESP_SOC="$ESP_ROOT/socs/${BOARD_DIR}"
 ESP_LINUX_ARIANE_ROOT="$ESP_ROOT/soft/ariane/linux"
 ESP_LINUX_ARIANE_BUILD="$ESP_SOC/soft-build/ariane/linux-build"
+ESP_SYSROOT_ARIANE="$ESP_SOC/soft-build/ariane/sysroot"
 ESP_LINUX_ARIANE_CONFIG="$ESP_LINUX_ARIANE_BUILD/.config"
 ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
 ESP_LINUX_VMLINUX="$ESP_LINUX_ARIANE_BUILD/vmlinux"
 ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
 ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
+VIRTUAL_ACC_APP_ROOT="$ESP_ROOT/soft/ariane/virtual-acc-app"
+VIRTUAL_ACC_APP_MAKEFILE="$VIRTUAL_ACC_APP_ROOT/Makefile"
+VIRTUAL_ACC_APP_EXAMPLES="$VIRTUAL_ACC_APP_ROOT/examples"
 # ESP_DTB="$QEMU_ROOT/riscv.dtb"
 
 # Runs RISCV GDB to debug Linux running on QEMU.
@@ -190,14 +217,35 @@ if [[ $REBUILD_QEMU -eq 1 ]] || [[ $CLEAN_REBUILD_QEMU -eq 1 ]] || [[ ! -f "$QEM
     popd
 fi
 
+export PATH="$RISCV_TOOLCHAIN_PATH/bin:$PATH"
+export RISCV="$RISCV_TOOLCHAIN_PATH"
+export ESP_ROOT="$ESP_ROOT"
+
+if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
+    if [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
+        pushd "$ESP_SOC"
+        make linux -j `nproc`
+        popd
+    fi
+
+    sed -i "66c ESP_EXE_DIR = $ESP_ROOT/socs/$BOARD_DIR/soft-build/ariane/sysroot/applications/test" "$VIRTUAL_ACC_APP_MAKEFILE"
+
+    # Build examples under "virtual-acc-app"
+    for example in "${EXAMPLES[@]}"; do
+        for d in $(ls -d $VIRTUAL_ACC_APP_EXAMPLES/*/); do
+            if [[ "$d" == *"$example"* ]]; then
+                pushd "$d"
+                make clean && make -j `nproc`
+                popd
+            fi
+        done
+    done
+fi
+
 REBUILD_LINUX=0
 # Build Linux image and file system image if necessary
-if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
+if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]] || [[ ${#EXAMPLES[@]} -gt 0 ]]; then
     pushd "$ESP_SOC"
-
-    export PATH="$RISCV_TOOLCHAIN_PATH/bin:$PATH"
-    export RISCV="$RISCV_TOOLCHAIN_PATH"
-    export ESP_ROOT="$ESP_ROOT"
 
     CONFIG_ARGS=(
         "$ESP_LINUX_ARIANE_ROOT/scripts/config"
