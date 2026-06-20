@@ -168,11 +168,20 @@ if [[ $QEMU_GUEST_LINUX -eq 1 ]]; then
     fi
 
     GUEST_GDB_ARGS=(
-        "$RISCV_TOOLCHAIN_PATH/bin/riscv64-unknown-linux-gnu-gdb"
+        # "$RISCV_TOOLCHAIN_PATH/bin/riscv64-unknown-linux-gnu-gdb"
+        "gdb-multiarch"
         "$ESP_LINUX_VMLINUX"
-        "-ex" "target remote localhost:1234"
-        # "-ex" "source $ESP_LINUX_ARIANE_BUILD/vmlinux-gdb.py"
-        # TODO: try to enable python scripts in the custom gdb
+        "-ex" "set architecture riscv:rv64"
+        "-ex" "target remote :1234"
+        "-ex" "cd $ESP_LINUX_ARIANE_BUILD"
+        "-ex" "source $ESP_LINUX_ARIANE_BUILD/vmlinux-gdb.py"
+        "-ex" "cd $QEMU_ROOT"
+        # "-ex" "cd $ESP_SYSROOT_ARIANE/opt"
+        # "-ex" "b arch_cpu_idle"
+        # "-ex" "d 1"
+        # "-ex" "c"
+        "-ex" "echo Run the following commands to load symbols from modules AFTER the login prompt:\\n"
+        "-ex" "echo \\tlx-symbols $ESP_SYSROOT_ARIANE/opt\\n"
     )
 
     for cmd in "${GUEST_GDB_COMMANDS[@]}"; do
