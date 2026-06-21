@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -e
+
 REBUILD_QEMU=0
 CLEAN_REBUILD_QEMU=0
 REBUILD_ESP=0
@@ -175,7 +177,7 @@ if [[ $QEMU_GUEST_LINUX -eq 1 ]]; then
         "-ex" "target remote :1234"
         "-ex" "cd $ESP_LINUX_ARIANE_BUILD"
         "-ex" "source $ESP_LINUX_ARIANE_BUILD/vmlinux-gdb.py"
-        "-ex" "cd $QEMU_ROOT"
+        # "-ex" "cd $QEMU_ROOT"
         # "-ex" "cd $ESP_SYSROOT_ARIANE/opt"
         # "-ex" "b arch_cpu_idle"
         # "-ex" "d 1"
@@ -320,7 +322,7 @@ fi
 HOST_QEMU_ARGS+=(
     "$QEMU_EXECUTABLE"
     "-machine" "virt"
-    "-m" "512M"
+    "-m" "1G"
     "-smp" "1"
     "-bios" "default"
     # "-bios" "$ESP_OPENSBI_FIRMWARE"
@@ -331,9 +333,12 @@ HOST_QEMU_ARGS+=(
 )
 
 if [[ $QEMU_STDIO -eq 1 ]]; then
+    # HOST_QEMU_ARGS+=(
+    #     "-display" "none"
+    #     "-serial" "stdio"
+    # )
     HOST_QEMU_ARGS+=(
-        "-display" "none"
-        "-serial" "stdio"
+        "-nographic"
     )
 fi
 if [[ $DEBUG_LINUX -eq 1 ]]; then
