@@ -105,6 +105,9 @@ enum accelerator_coherence {ACC_COH_NONE = 0, ACC_COH_LLC, ACC_COH_RECALL, ACC_C
 
 #endif
 
+MemoryRegion greth_reserved;
+MemoryRegion accel_reserved;
+
 DeviceState *gemm_stratus_create(void) {
     DeviceState *dev = qdev_new(TYPE_GEMM_STRATUS);
     SysBusDevice *sbdev = SYS_BUS_DEVICE(dev);
@@ -138,10 +141,17 @@ static const MemoryRegionOps gemm_stratus_mmio_ops = {
 static void gemm_stratus_realize(DeviceState *dev, Error **errp) {
     GemmStratusState *s = GEMM_STRATUS(dev);
 
+    sysbus_init_mmio(SYS_BUS_DEVICE(s), &greth_reserved);
+    memory_region_init_ram(&greth_reserved, OBJECT(s), "greth-reserved", 0x200000, &error_fatal);
+    memory_region_add_subregion(get_system_memory(), 0xa0000000, &greth_reserved);
+
+    sysbus_init_mmio(SYS_BUS_DEVICE(s), &accel_reserved);
+    memory_region_init_ram(&accel_reserved, OBJECT(s), "accelerator-reserved", 0x1fe00000, &error_fatal);
+    memory_region_add_subregion(get_system_memory(), 0xa0200000, &accel_reserved);
+
+    sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
     memory_region_init_io(&s->mmio, OBJECT(s), &gemm_stratus_mmio_ops, s, "gemm_stratus-mmio", GEMM_MMIO_SIZE);
     memory_region_add_subregion(get_system_memory(), GEMM_MMIO_BASE, &s->mmio);
-    sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
-        
 
     sysbus_init_irq(SYS_BUS_DEVICE(s), &s->irq);
 }

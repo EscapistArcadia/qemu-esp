@@ -1621,8 +1621,9 @@ static void virt_machine_init(MachineState *machine)
     s->machine_done.notify = virt_machine_done;
     qemu_add_machine_init_done_notifier(&s->machine_done);
 
-    create_unimplemented_device("esp_greth_unimp", 0xa0000000, 0x200000);
+    // create_unimplemented_device("esp_greth_unimp", 0xa0000000, 0x200000);
     create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
+    // create_unimplemented_device("esp_accel_reserved", 0xa0200000, 0x1fe00000);
     
     gemm_stratus_create();
 }
