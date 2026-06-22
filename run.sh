@@ -6,7 +6,7 @@ REBUILD_QEMU=0
 CLEAN_REBUILD_QEMU=0
 REBUILD_ESP=0
 CLEAN_REBUILD_ESP=0
-QEMU_STDIO=0
+QEMU_NOGRAPHIC=0
 RUN_WITH_GDB=0
 DEBUG_LINUX=0
 QEMU_GUEST_LINUX=0
@@ -107,7 +107,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --nographic)
-            QEMU_STDIO=1
+            QEMU_NOGRAPHIC=1
             shift
             ;;
         --gdb-qemu)
@@ -332,14 +332,17 @@ HOST_QEMU_ARGS+=(
     "-append" "\"console=ttyS0,115200\""
 )
 
-if [[ $QEMU_STDIO -eq 1 ]]; then
-    # HOST_QEMU_ARGS+=(
-    #     "-display" "none"
-    #     "-serial" "stdio"
-    # )
-    HOST_QEMU_ARGS+=(
-        "-nographic"
-    )
+if [[ $QEMU_NOGRAPHIC -eq 1 ]]; then
+    if [[ $RUN_WITH_GDB -eq 1 ]]; then
+        HOST_QEMU_ARGS+=(
+            "-display" "none"
+            "-serial" "stdio"
+        )
+    else
+        HOST_QEMU_ARGS+=(
+            "-nographic"
+        )
+    fi
 fi
 if [[ $DEBUG_LINUX -eq 1 ]]; then
     HOST_QEMU_ARGS+=(
