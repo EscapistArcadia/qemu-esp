@@ -138,20 +138,44 @@ static const MemoryRegionOps gemm_stratus_mmio_ops = {
     }
 };
 
+/**
+ * @brief Temporary wrapper for initializing a subreagion of main memory chip as the reserved memory for special purposes
+ * 
+ * @param name MemoryRegion
+ * @param base Base address of the reserved memory region
+ * @param size Size of the reserved memory region
+ */
+#define INIT_RAM_REGION(name, base, size) \
+    do { \
+        sysbus_init_mmio(SYS_BUS_DEVICE(s), &name); \
+        memory_region_init_ram(&name, OBJECT(s), #name, size, &error_fatal); \
+        memory_region_add_subregion(get_system_memory(), base, &name); \
+    } while (0)
+
+/**
+ * @brief Temporary wrapper for initializing the MMIO region for accelerators and adding it to the system memory map
+ * 
+ * @param name MemoryRegion
+ * @param base Base address of the MMIO region
+ * @param size Size of the MMIO region
+ */
+#define INIT_MMIO_REGION(name, base, size) \
+    do { \
+        sysbus_init_mmio(SYS_BUS_DEVICE(s), &name); \
+        memory_region_init_io(&name, OBJECT(s), &gemm_stratus_mmio_ops, s, #name, size); \
+        memory_region_add_subregion(get_system_memory(), base, &name); \
+    } while (0)
+
 static void gemm_stratus_realize(DeviceState *dev, Error **errp) {
     GemmStratusState *s = GEMM_STRATUS(dev);
 
-    sysbus_init_mmio(SYS_BUS_DEVICE(s), &greth_reserved);
-    memory_region_init_ram(&greth_reserved, OBJECT(s), "greth-reserved", 0x200000, &error_fatal);
-    memory_region_add_subregion(get_system_memory(), 0xa0000000, &greth_reserved);
+    /* TODO: Substitute "magic" number with constants */
+    /* TODO: Then, parse the device tree to obtain the base addresses and sizes */
+    INIT_RAM_REGION(greth_reserved, 0xa0000000, 0x00200000);
+    INIT_RAM_REGION(accel_reserved, 0xa0200000, 0x1fe00000);
 
-    sysbus_init_mmio(SYS_BUS_DEVICE(s), &accel_reserved);
-    memory_region_init_ram(&accel_reserved, OBJECT(s), "accelerator-reserved", 0x1fe00000, &error_fatal);
-    memory_region_add_subregion(get_system_memory(), 0xa0200000, &accel_reserved);
-
-    sysbus_init_mmio(SYS_BUS_DEVICE(s), &s->mmio);
-    memory_region_init_io(&s->mmio, OBJECT(s), &gemm_stratus_mmio_ops, s, "gemm_stratus-mmio", GEMM_MMIO_SIZE);
-    memory_region_add_subregion(get_system_memory(), GEMM_MMIO_BASE, &s->mmio);
+    /* TODO: Proper name for the MMIO region, rather than s->mmio */
+    INIT_MMIO_REGION(s->mmio, GEMM_MMIO_BASE, GEMM_MMIO_SIZE); 
 
     sysbus_init_irq(SYS_BUS_DEVICE(s), &s->irq);
 }
