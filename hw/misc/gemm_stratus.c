@@ -176,18 +176,122 @@ static const MemoryRegionOps gemm_stratus_mmio_ops = {
     }
 };
 
-typedef struct sm_queue_slot_t {
+#ifndef GEMM_STRATUS_SM_QUEUE
+
+#define SM_ENTRY_SIZE (2 * MPMC_DEGREE)
+#define SM_SEQ_SIZE 2
+#define SM_COMMON_SIZE 8
+#define SM_SLOT_SIZE 4
+#define SM_QUEUE_SIZE 4
+#define SM_QUEUE_WORDS (SM_COMMON_SIZE + (SM_SLOT_SIZE * SM_QUEUE_SIZE))
+
+#define QUEUE_INVALID 0
+#define QUEUE_AVAIL 1
+#define QUEUE_BUSY 2
+
+typedef struct {
+    unsigned output_queue;
+    unsigned output_entry;
+} sm_queue_entry_t;
+
+typedef struct {
     uint64_t seq;
     uint64_t entry;
 } sm_queue_slot_t;
 
-typedef struct sm_queue_t {
+typedef struct {
     uint64_t stat;
     uint64_t head;
     uint64_t tail;
     uint64_t next_queue_ptr;
-    sm_queue_slot_t slots[CONTEXT_COUNT];
+    sm_queue_slot_t slot[SM_QUEUE_SIZE];
 } sm_queue_t;
+
+static inline void sm_queue_init(sm_queue_t *q) {
+    __atomic_store_n(&(q->stat), QUEUE_AVAIL, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(q->head), 0, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(q->tail), 0, __ATOMIC_SEQ_CST);
+    __atomic_store_n(&(q->next_queue_ptr), 0, __ATOMIC_SEQ_CST);
+    for (unsigned i = 0; i < SM_QUEUE_SIZE; i++) {
+        q->slot[i].seq = i;
+        q->slot[i].entry = 0;
+    }
+}
+
+static inline bool sm_queue_can_push(sm_queue_t *q, uint64_t *head_idx) {
+    uint64_t head = __atomic_load_n(&(q->head), __ATOMIC_ACQUIRE);
+    uint64_t tail = __atomic_load_n(&(q->tail), __ATOMIC_ACQUIRE);
+    sm_queue_slot_t *slot;
+    uint64_t seq;
+    uint64_t expected_head;
+
+    if ((head - tail) >= SM_QUEUE_SIZE) {
+        return false;
+    }
+
+    slot = &q->slot[head % SM_QUEUE_SIZE];
+    seq = __atomic_load_n(&(slot->seq), __ATOMIC_ACQUIRE);
+    if (seq != head) {
+        return false;
+    }
+
+    expected_head = head;
+    if (!__atomic_compare_exchange_n(&(q->head), &expected_head, head + 1,
+                                     false, __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
+        return false;
+    }
+
+    *head_idx = head;
+    return true;
+}
+
+static inline void sm_queue_push(sm_queue_t *q, uint64_t head_idx, uint64_t value) {
+    sm_queue_slot_t *slot;
+    slot = &q->slot[head_idx % SM_QUEUE_SIZE];
+    __atomic_store_n(&(slot->entry), value, __ATOMIC_RELEASE);
+    __atomic_store_n(&(slot->seq), head_idx + 1, __ATOMIC_RELEASE);
+}
+
+static inline bool sm_queue_can_pop(sm_queue_t *q, uint64_t *value) {
+    uint64_t tail = __atomic_load_n(&(q->tail), __ATOMIC_ACQUIRE);
+    sm_queue_slot_t *slot = &q->slot[tail % SM_QUEUE_SIZE];
+    uint64_t seq = __atomic_load_n(&(slot->seq), __ATOMIC_ACQUIRE);
+    if (seq != (tail + 1)) return false;
+    *value = __atomic_load_n(&(slot->entry), __ATOMIC_ACQUIRE);
+    return true;
+}
+
+static inline uint64_t sm_queue_pop(sm_queue_t *q) {
+    uint64_t tail = __atomic_load_n(&(q->tail), __ATOMIC_ACQUIRE);
+    sm_queue_slot_t *slot = &q->slot[tail % SM_QUEUE_SIZE];
+    uint64_t value = __atomic_load_n(&(slot->entry), __ATOMIC_ACQUIRE);
+    __atomic_store_n(&(slot->seq), tail + SM_QUEUE_SIZE, __ATOMIC_RELEASE);
+    __atomic_store_n(&(q->tail), tail + 1, __ATOMIC_RELEASE);
+    return value;
+}
+
+static inline bool sm_queue_empty(sm_queue_t *q) {
+    uint64_t tail = __atomic_load_n(&(q->tail), __ATOMIC_ACQUIRE);
+    sm_queue_slot_t *slot = &q->slot[tail % SM_QUEUE_SIZE];
+    uint64_t seq = __atomic_load_n(&(slot->seq), __ATOMIC_ACQUIRE);
+    return (seq != (tail + 1));
+}
+
+static inline bool sm_queue_full(sm_queue_t *q) {
+    uint64_t head = __atomic_load_n(&(q->head), __ATOMIC_ACQUIRE);
+    uint64_t tail = __atomic_load_n(&(q->tail), __ATOMIC_ACQUIRE);
+    return (head - tail) >= SM_QUEUE_SIZE;
+}
+
+static inline unsigned sm_queue_level(sm_queue_t *q) {
+    uint64_t head = __atomic_load_n(&q->head, __ATOMIC_ACQUIRE);
+    uint64_t tail = __atomic_load_n(&q->tail, __ATOMIC_ACQUIRE);
+    return (unsigned)(head - tail);
+}
+
+#endif
+
+#define IS_VALID_CONTEXT(bitmap, ctxt) (((bitmap) & (1 << (ctxt))) != 0)
 
 static void *gemm_stratus(void *arg) {
     GemmStratusState *s = (GemmStratusState *)arg;
