@@ -1,7 +1,10 @@
 #include "hw/misc/gemm_stratus.h"
+#include "exec/memattrs.h"
 #include "hw/core/sysbus.h"
 #include "system/address-spaces.h"
 #include "qapi/error.h"
+#include "system/dma.h"
+
 
 #ifndef GEMM_STRATUS_DEBUG
 #define GEMM_STRATUS_DEBUG 1
@@ -157,6 +160,50 @@ static const MemoryRegionOps gemm_stratus_mmio_ops = {
     }
 };
 
+typedef struct sm_queue_slot_t {
+    uint64_t seq;
+    uint64_t entry;
+} sm_queue_slot_t;
+
+typedef struct sm_queue_t {
+    uint64_t stat;
+    uint64_t head;
+    uint64_t tail;
+    uint64_t next_queue_ptr;
+    sm_queue_slot_t slots[CONTEXT_COUNT];
+} sm_queue_t;
+
+static void *gemm_stratus(void *arg) {
+    GemmStratusState *s = (GemmStratusState *)arg;
+
+    uint64_t pt_base, pt_address, queue_base;
+    // sm_queue_t queue[CONTEXT_COUNT];
+    sm_queue_t queue;
+
+    while (1) {
+        /* verbose queue data every 5 seconds */
+        for (int ctx = 0; ctx < CONTEXT_COUNT; ctx++) {
+            pt_address = MAKEDWORD(s->pt_address_low[ctx], s->pt_address_high);
+            dma_memory_read(&address_space_memory, pt_address, &pt_base, sizeof(uint64_t), MEMTXATTRS_UNSPECIFIED);
+
+            queue_base = (pt_base + (s->queue_ptr[ctx] * 4));
+            if (queue_base) {
+                dma_memory_read(&address_space_memory, queue_base, &queue, sizeof(sm_queue_t), MEMTXATTRS_UNSPECIFIED);
+                printf("queue[%d]: stat=0x%lx, head=0x%lx, tail=0x%lx, next_queue_ptr=0x%lx\n", ctx, queue.stat, queue.head, queue.tail, queue.next_queue_ptr);
+                for (int i = 0; i < CONTEXT_COUNT; i++) {
+                    printf("  slot[%d]: seq=0x%lx, entry=0x%lx\n", i, queue.slots[i].seq, queue.slots[i].entry);
+                }
+            } else {
+                printf("queue[%d]: NULL\n", ctx);
+            }
+        }
+
+        g_usleep(5000000);
+    }
+
+    return NULL;
+}
+
 /**
  * @brief Temporary wrapper for initializing a subreagion of main memory chip as the reserved memory for special purposes
  * 
@@ -197,6 +244,8 @@ static void gemm_stratus_realize(DeviceState *dev, Error **errp) {
     INIT_MMIO_REGION(s->mmio, GEMM_MMIO_BASE, GEMM_MMIO_SIZE); 
 
     sysbus_init_irq(SYS_BUS_DEVICE(s), &s->irq);
+
+    qemu_thread_create(&s->gemm_eq, TYPE_GEMM_STRATUS, gemm_stratus, s, QEMU_THREAD_DETACHED);
 }
 
 static void gemm_stratus_class_init(ObjectClass *klass, const void *data) {

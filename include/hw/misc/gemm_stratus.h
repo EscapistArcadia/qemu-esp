@@ -23,6 +23,8 @@ struct GemmStratusState {
     uint32_t pt_address_high;
     uint32_t pt_address_low[CONTEXT_COUNT];
     uint64_t queue_ptr[CONTEXT_COUNT];
+
+    QemuThread gemm_eq;
 };
 
 typedef struct GemmStratusState GemmStratusState;
