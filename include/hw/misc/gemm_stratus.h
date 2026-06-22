@@ -12,11 +12,17 @@
 #define GEMM_MMIO_SIZE (0x100)
 #define GEMM_IRQ (6)
 
+#define CONTEXT_COUNT 4
+
 struct GemmStratusState {
     SysBusDevice parent_obj;
 
     MemoryRegion mmio;
     qemu_irq irq;
+
+    uint32_t pt_address_high;
+    uint32_t pt_address_low[CONTEXT_COUNT];
+    uint64_t queue_ptr[CONTEXT_COUNT];
 };
 
 typedef struct GemmStratusState GemmStratusState;

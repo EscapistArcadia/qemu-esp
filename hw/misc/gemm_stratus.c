@@ -120,12 +120,62 @@ DeviceState *gemm_stratus_create(void) {
     return dev;
 }
 
+#if 1
+#include "hw/misc/gemm_stratus_mmio.inc"
+#else
+#define gemm_stratus_mmio_read_verbose(addr, size)
+#define gemm_stratus_mmio_write_verbose(addr, data, size)
+#endif
+
 static uint64_t gemm_stratus_mmio_read(void *opaque, hwaddr addr, unsigned size) {
+    gemm_stratus_mmio_read_verbose(addr, size);
+
     return 0;
 }
 
+#define MAKEDWORD(lo, hi) (((uint64_t)(hi) << 32) | (uint64_t)(lo))
+
+#define LOWORD(x) ((uint32_t)((x) & 0xffffffff))
+#define HIWORD(x) ((uint32_t)(((x) >> 32) & 0xffffffff))
+
+/*
+#define UPDATE_LO(dest, src) \
+    do { \
+        (dest) |= ((uint64_t)src & 0xffffffff); \
+    } while (0)
+#define UPDATE_HI(dest, src) \
+    do { \
+        (dest) |= ((uint64_t)src << 32); \
+    } while (0)
+*/
+
 static void gemm_stratus_mmio_write(void *opaque, hwaddr addr, uint64_t data, unsigned size) {
-    
+    GemmStratusState *s = opaque;
+
+    gemm_stratus_mmio_write_verbose(addr, data, size);
+
+    switch (addr) {
+        case PT_ADDRESS_REG_0:
+        case PT_ADDRESS_REG_1:
+        case PT_ADDRESS_REG_2:
+        case PT_ADDRESS_REG_3: {
+            uint64_t context_id = (addr - PT_ADDRESS_REG_0) / 4;
+            s->pt_address_low[context_id] = LOWORD(data);
+            break;
+        }
+        case PT_ADDRESS_EXTENDED_REG: {
+            s->pt_address_high = LOWORD(data);
+            break;
+        }
+        case AMU_INFO_QUEUE_PTR_REG_0:
+        case AMU_INFO_QUEUE_PTR_REG_1:
+        case AMU_INFO_QUEUE_PTR_REG_2:
+        case AMU_INFO_QUEUE_PTR_REG_3: {
+            uint64_t context_id = (addr - AMU_INFO_QUEUE_PTR_REG_0) / 4;
+            s->queue_ptr[context_id] = LOWORD(data);
+            break;
+        }
+    }
 }
 
 static const MemoryRegionOps gemm_stratus_mmio_ops = {
