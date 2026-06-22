@@ -139,6 +139,22 @@ static void gemm_stratus_mmio_write(void *opaque, hwaddr addr, uint64_t data, un
             s->pt_address_high = LOWORD(data);
             break;
         }
+        case AMU_INFO_NPRIO_REG_0:
+        case AMU_INFO_NPRIO_REG_1:
+        case AMU_INFO_NPRIO_REG_2:
+        case AMU_INFO_NPRIO_REG_3: {
+            uint64_t context_id = (addr - AMU_INFO_NPRIO_REG_0) / 4;
+            s->nprio[context_id] = LOWORD(data);
+            break;
+        }
+        case AMU_INFO_VLD_CTXT_REG: {
+            s->valid_contexts = LOWORD(data);
+            break;
+        }
+        case AMU_INFO_SCHED_PERIOD_REG: {
+            s->sched_period = LOWORD(data);
+            break;
+        }
         case AMU_INFO_QUEUE_PTR_REG_0:
         case AMU_INFO_QUEUE_PTR_REG_1:
         case AMU_INFO_QUEUE_PTR_REG_2:

@@ -23,6 +23,9 @@ struct GemmStratusState {
     uint32_t pt_address_high;
     uint32_t pt_address_low[CONTEXT_COUNT];
     uint64_t queue_ptr[CONTEXT_COUNT];
+    uint32_t nprio[CONTEXT_COUNT];
+    uint32_t valid_contexts;
+    uint32_t sched_period;
 
     QemuThread gemm_eq;
 };
