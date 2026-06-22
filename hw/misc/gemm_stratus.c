@@ -301,24 +301,73 @@ static void *gemm_stratus(void *arg) {
     sm_queue_t queue;
 
     while (1) {
-        /* verbose queue data every 5 seconds */
-        for (int ctx = 0; ctx < CONTEXT_COUNT; ctx++) {
-            pt_address = MAKEDWORD(s->pt_address_low[ctx], s->pt_address_high);
-            dma_memory_read(&address_space_memory, pt_address, &pt_base, sizeof(uint64_t), MEMTXATTRS_UNSPECIFIED);
+        /* pseudo check_next_context */
 
-            queue_base = (pt_base + (s->queue_ptr[ctx] * 4));
-            if (queue_base) {
+        uint32_t next_context = -1;
+        for (uint32_t i = 0; i < CONTEXT_COUNT; i++) {
+            if (IS_VALID_CONTEXT(s->valid_contexts, i)) {
+                pt_address = MAKEDWORD(s->pt_address_low[i], s->pt_address_high);
+                dma_memory_read(&address_space_memory, pt_address, &pt_base, sizeof(uint64_t), MEMTXATTRS_UNSPECIFIED);
+
+                queue_base = pt_base + s->queue_ptr[i] * sizeof(uint32_t);
                 dma_memory_read(&address_space_memory, queue_base, &queue, sizeof(sm_queue_t), MEMTXATTRS_UNSPECIFIED);
-                printf("queue[%d]: stat=0x%lx, head=0x%lx, tail=0x%lx, next_queue_ptr=0x%lx\n", ctx, queue.stat, queue.head, queue.tail, queue.next_queue_ptr);
-                for (int i = 0; i < CONTEXT_COUNT; i++) {
-                    printf("  slot[%d]: seq=0x%lx, entry=0x%lx\n", i, queue.slots[i].seq, queue.slots[i].entry);
+
+                if (!sm_queue_empty(&queue)) {
+                    next_context = i;
+
+                    // <<--params-->>
+                    typedef struct {
+                        uint32_t ninputs;    // Number of inputs
+                        uint32_t d1;         // Size d1 of the matrix 1
+                        uint32_t d2;         // Size d2 of the matrix 1
+                        uint32_t d3;         // Size d2 of the matrix 2
+                        uint32_t ld_offset1; // Input offset (matrix 1)
+                        uint32_t ld_offset2; // Input offset (matrix 2)
+                        uint32_t bias_offset; // Bias vector offset
+                        uint32_t st_offset;  // Output offset
+                        uint32_t do_relu; // Do ReLU stage
+                        uint32_t do_bias; // Add bias stage
+                        uint32_t transpose; // True
+                        uint32_t padding;
+                    } gemm_params_t;
+
+                    typedef struct {
+                        gemm_params_t gemm_params;
+                        sm_queue_entry_t output[2];
+                    } gemm_queue_entry_t;
+
+                    gemm_queue_entry_t desc;
+                    dma_memory_read(&address_space_memory, pt_base + sm_queue_pop(&queue) * sizeof(uint32_t), &desc, sizeof(gemm_queue_entry_t), MEMTXATTRS_UNSPECIFIED);
+                    
+                    printf("[QEMU] Processing context %u with parameters: ninputs=%u, d1=%u, d2=%u, d3=%u, ld_offset1=%u, ld_offset2=%u, bias_offset=%u, st_offset=%u, do_relu=%u, do_bias=%u, transpose=%u\n",
+                        next_context,
+                        desc.gemm_params.ninputs,
+                        desc.gemm_params.d1,
+                        desc.gemm_params.d2,
+                        desc.gemm_params.d3,
+                        desc.gemm_params.ld_offset1,
+                        desc.gemm_params.ld_offset2,
+                        desc.gemm_params.bias_offset,
+                        desc.gemm_params.st_offset,
+                        desc.gemm_params.do_relu,
+                        desc.gemm_params.do_bias,
+                        desc.gemm_params.transpose);
+
+                    dma_memory_write(&address_space_memory, queue_base, &queue, sizeof(sm_queue_t), MEMTXATTRS_UNSPECIFIED);
+
+                    uint64_t output_queue_offset = desc.output[0].output_queue, output_entry = desc.output[0].output_entry, head_idx;
+                    uint64_t output_queue = pt_base + output_queue_offset * sizeof(uint32_t);
+                    sm_queue_t out_q;
+                    do {
+                        dma_memory_read(&address_space_memory, output_queue, &out_q, sizeof(sm_queue_t), MEMTXATTRS_UNSPECIFIED);
+                    } while (!sm_queue_can_push(&out_q, &head_idx));
+
+                    sm_queue_push(&out_q, head_idx, output_entry);
+                    dma_memory_write(&address_space_memory, output_queue, &out_q, sizeof(sm_queue_t), MEMTXATTRS_UNSPECIFIED);
+                    g_usleep(1000000);
                 }
-            } else {
-                printf("queue[%d]: NULL\n", ctx);
             }
         }
-
-        g_usleep(5000000);
     }
 
     return NULL;
