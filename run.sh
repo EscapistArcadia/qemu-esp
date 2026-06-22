@@ -239,7 +239,7 @@ if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
         popd
     fi
 
-    sed -i "66c ESP_EXE_DIR = $ESP_ROOT/socs/$BOARD_DIR/soft-build/ariane/sysroot/applications/test" "$VIRTUAL_ACC_APP_MAKEFILE"
+    sed -i "67c ESP_EXE_DIR = $ESP_ROOT/socs/$BOARD_DIR/soft-build/ariane/sysroot/applications/test" "$VIRTUAL_ACC_APP_MAKEFILE"
 
     # Build examples under "virtual-acc-app"
     for example in "${EXAMPLES[@]}"; do
