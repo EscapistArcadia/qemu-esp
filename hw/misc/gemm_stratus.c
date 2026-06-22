@@ -9,99 +9,68 @@
 
 #ifndef ESP_ACCEL_REG
 
-/***
- * ESP accelerator common definitions and registers offset
- ***/
+enum GemmStratusRegisters {
+    CMD_REG = 0x00,
+    STATUS_REG = 0x04,
+    SELECT_REG = 0x08,
+    DEVID_REG = 0x0c,
+    PT_ADDRESS_REG = 0x10,
+    PT_NCHUNK_REG = 0x14,
+    PT_SHIFT_REG = 0x18,
+    PT_NCHUNK_MAX_REG = 0x1c,
+    PT_ADDRESS_EXTENDED_REG = 0x20,
+    PT_COHERENCE_REG = 0x24,
+    P2P_REG = 0x28,
+    YX_REG = 0x2c,
+    SRC_OFFSET_REG = 0x30,
+    DST_OFFSET_REG = 0x34,
+    ESP_MAX = DST_OFFSET_REG,
 
-/* bank(0): CMD (reset if cleared) */
-#define CMD_REG 0x00
-#define CMD_MASK_START BIT(0)
+    /* following: vignesh's fantastic additions */
+    SPANDEX_REG = 0x38,
 
-/* bank(1): STATUS (idle when cleared) - Read only */
-#define STATUS_REG 0x04
-#define STATUS_MASK_RUN  BIT(0)
-#define STATUS_MASK_DONE BIT(1)
-#define STATUS_MASK_ERR  BIT(2)
+    VALID_CONTEXTS_ACK_REG = 0x3c,
+    
+    PT_ADDRESS_REG_0 = 0x40,
+    PT_ADDRESS_REG_1 = 0x44,
+    PT_ADDRESS_REG_2 = 0x48,
+    PT_ADDRESS_REG_3 = 0x4c,
 
-/* bank(2)        : SELECT (which accelerator will run in 1 hot encoding) */
-#define SELECT_REG 0x08
+    MON_UTIL_REG_0_LO = 0x50,
+    MON_UTIL_REG_0_HI = 0x54,
+    MON_UTIL_REG_1_LO = 0x58,
+    MON_UTIL_REG_1_HI = 0x5c,
+    MON_UTIL_REG_2_LO = 0x60,
+    MON_UTIL_REG_2_HI = 0x64,
+    MON_UTIL_REG_3_LO = 0x68,
+    MON_UTIL_REG_3_HI = 0x6c,
 
-/* bank(3)        : RESERVED - Read only */
-#define DEVID_REG 0x0c
+    AMU_INFO_QUEUE_PTR_REG_0 = 0x70,
+    AMU_INFO_QUEUE_PTR_REG_1 = 0x74,
+    AMU_INFO_QUEUE_PTR_REG_2 = 0x78,
+    AMU_INFO_QUEUE_PTR_REG_3 = 0x7c,
 
-/* bank(4)        : PT_ADDRESS (page table bus address) */
-#define PT_ADDRESS_REG 0x10
+    AMU_INFO_NPRIO_REG_0 = 0x80,
+    AMU_INFO_NPRIO_REG_1 = 0x84,
+    AMU_INFO_NPRIO_REG_2 = 0x88,
+    AMU_INFO_NPRIO_REG_3 = 0x8c,
 
-/* bank(5)        : PT_NCHUNK (number of physical contiguous buffers in memory) */
-#define PT_NCHUNK_REG 0x14
+    AMU_INFO_VLD_CTXT_REG = 0x90,
+    AMU_INFO_SCHED_PERIOD_REG = 0x94,
 
-/* bank(6)        : PT_SHIFT (log2(cunk size)) */
-#define PT_SHIFT_REG 0x18
-
-/* bank(7)        : PT_NCHUNK_MAX (maximum number of chunks supported) - Read only */
-#define PT_NCHUNK_MAX_REG 0x1c
-
-/* bank(8)        : PT_ADDRESS_EXTENDED (page table bus address MSBs) */
-#define PT_ADDRESS_EXTENDED_REG 0x20
-
-/* bank(9)        : Type of coherence (None, LLC, Full) - Read only */
-#define COHERENCE_REG 0x24
-enum accelerator_coherence {ACC_COH_NONE = 0, ACC_COH_LLC, ACC_COH_RECALL, ACC_COH_FULL, ACC_COH_AUTO};
-
-/* bank(10)       : Point-to-point configuration */
-#define P2P_REG 0x28
-#define P2P_MASK_NSRCS 0x3
-#define P2P_MASK_SRC_IS_P2P BIT(2)
-#define P2P_MASK_DST_IS_P2P BIT(3)
-#define P2P_MASK_SRCS_YX 0x7
-#define P2P_SHIFT_SRCS_Y(_n) (7 + _n * 6)
-#define P2P_SHIFT_SRCS_X(_n) (4 + _n * 6)
-
-/* bank(11)       : RESERVED */
-#define YX_REG 0x2c
-#define YX_SHIFT_X 0
-#define YX_SHIFT_Y 16
-#define YX_MASK_YX 0x7
-
-/* bank(12)       : SRC_OFFSET (offset in bytes from beginning of physical buffer) */
-#define SRC_OFFSET_REG 0x30
-
-/* bank(13)       : DST_OFFSET (offset in bytes from beginning of physical buffer) */
-#define DST_OFFSET_REG 0x34
-
-/* bank(14)       : SPANDEX_REG */
-#define SPANDEX_REG 0x38
-
-/* bank(15)       : VALID_CONTEXTS_ACK_REG */
-#define VALID_CONTEXTS_ACK_REG 0x3c
-
-/* bank(16 to 19) : PT_ADDRESS_REG_i */
-#define PT_ADDRESS_REG_0 0x40
-#define PT_ADDRESS_REG_1 0x44
-#define PT_ADDRESS_REG_2 0x48
-#define PT_ADDRESS_REG_3 0x4c
-
-/* bank(20 to 27) : MON_UTIL_REG_i */
-#define MON_UTIL_REG_0_LO 0x50
-#define MON_UTIL_REG_0_HI 0x54
-#define MON_UTIL_REG_1_LO 0x58
-#define MON_UTIL_REG_1_HI 0x5c
-#define MON_UTIL_REG_2_LO 0x60
-#define MON_UTIL_REG_2_HI 0x64
-#define MON_UTIL_REG_3_LO 0x68
-#define MON_UTIL_REG_3_HI 0x6c
-
-/* bank(28 to 63) : USR (user defined) */
-
-// Re-enable the following 3 registers if adding an SRAM expanding the register bank
-// /* bank(29)       : EXP_ADDR (bits 29:0 address an SRAM expanding the register bank) */
-// #define EXP_ADDR_REG 0x74
-// #define EXT_MASK_R BIT(30)
-// #define EXT_MASK_W BIT(31)
-// /* bank(30)       : EXP_DI (data to be written to the expansion SRAM) */
-// #define EXP_DI_REG 0x78
-// /* bank(31)       : EXP_DO (data read from the exansion SRAM) */
-// #define EXP_DO_REG 0x7c
+    /* following: gemm */
+    GEMM_NINPUTS_REG = 0x98,
+    GEMM_D1_REG = 0x9c,
+    GEMM_D2_REG = 0xa0,
+    GEMM_D3_REG = 0xa4,
+    GEMM_LD_OFFSET1_REG = 0xa8,
+    GEMM_LD_OFFSET2_REG = 0xac,
+    GEMM_BIAS_OFFSET_REG = 0xb0,
+    GEMM_ST_OFFSET_REG = 0xb4,
+    GEMM_DO_RELU_REG = 0xb8,
+    GEMM_DO_BIAS_REG = 0xbc,
+    GEMM_TRANSPOSE_REG = 0xc0,
+};
 
 #endif
 
