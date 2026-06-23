@@ -4,8 +4,9 @@ set -e
 
 REBUILD_QEMU=0
 CLEAN_REBUILD_QEMU=0
-REBUILD_ESP=0
-CLEAN_REBUILD_ESP=0
+REBUILD_LINUX=0
+CLEAN_REBUILD_LINUX=0
+REBUILD_FILESYSTEM=0
 QEMU_NOGRAPHIC=0
 RUN_WITH_GDB=0
 DEBUG_LINUX=0
@@ -94,16 +95,20 @@ while [[ $# -gt 0 ]]; do
             REBUILD_QEMU=1
             shift
             ;;
-        --rebuild-esp)
-            REBUILD_ESP=1
+        --rebuild-linux)
+            REBUILD_LINUX=1
+            shift
+            ;;
+        --rebuild-filesys)
+            REBUILD_FILESYSTEM=1
             shift
             ;;
         --clean-rebuild-qemu)
             CLEAN_REBUILD_QEMU=1
             shift
             ;;
-        --clean-rebuild-esp)
-            CLEAN_REBUILD_ESP=1
+        --clean-rebuild-linux)
+            CLEAN_REBUILD_LINUX=1
             shift
             ;;
         --nographic)
@@ -156,6 +161,7 @@ ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
 ESP_LINUX_VMLINUX="$ESP_LINUX_ARIANE_BUILD/vmlinux"
 ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
 ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
+ESP_FILESYS_LIST="$ESP_SOC/soft-build/ariane/sysroot.files"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 VIRTUAL_ACC_APP_ROOT="$ESP_ROOT/soft/ariane/virtual-acc-app"
 VIRTUAL_ACC_APP_MAKEFILE="$VIRTUAL_ACC_APP_ROOT/Makefile"
@@ -253,9 +259,18 @@ if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
     done
 fi
 
-REBUILD_LINUX=0
+if [[ $REBUILD_FILESYSTEM -eq 1 ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
+    pushd "$ESP_SOC"
+    
+    rm "$ESP_FILESYS_LIST" "$ESP_FILESYS_IMAGE" || true
+    make $ESP_LINUX_VMLINUX -j `nproc`
+
+    popd
+fi
+
+BUILD_LINUX_TWICE=0
 # Build Linux image and file system image if necessary
-if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]] || [[ ${#EXAMPLES[@]} -gt 0 ]]; then
+if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]] || [[ ${#EXAMPLES[@]} -gt 0 ]]; then
     pushd "$ESP_SOC"
 
     CONFIG_ARGS=(
@@ -279,11 +294,11 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
         "-e" "KALLSYMS_ALL"
     )
 
-    if [[ $CLEAN_REBUILD_ESP -eq 1 ]]; then
-        REBUILD_LINUX=1
+    if [[ $CLEAN_REBUILD_LINUX -eq 1 ]]; then
+        BUILD_LINUX_TWICE=1
         make linux-distclean
     elif [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
-        REBUILD_LINUX=1
+        BUILD_LINUX_TWICE=1
     else
         pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
@@ -292,7 +307,7 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
 
     make linux -j `nproc`
 
-    if [[ $REBUILD_LINUX -eq 1 ]]; then
+    if [[ $BUILD_LINUX_TWICE -eq 1 ]]; then
         pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
         popd
@@ -327,7 +342,7 @@ HOST_QEMU_ARGS+=(
     "-bios" "default"
     # "-bios" "$ESP_OPENSBI_FIRMWARE"
     "-kernel" "$ESP_LINUX_IMAGE"
-    "-initrd" "$ESP_FILESYS_IMAGE"
+    # "-initrd" "$ESP_FILESYS_IMAGE"
     "-dtb" "$DTB"
     "-append" "\"console=ttyS0,115200\""
 )
