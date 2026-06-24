@@ -257,6 +257,8 @@ if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
             fi
         done
     done
+
+    REBUILD_FILESYSTEM=1
 fi
 
 if [[ $REBUILD_FILESYSTEM -eq 1 ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
@@ -270,7 +272,7 @@ fi
 
 BUILD_LINUX_TWICE=0
 # Build Linux image and file system image if necessary
-if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]] || [[ ${#EXAMPLES[@]} -gt 0 ]]; then
+if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
     pushd "$ESP_SOC"
 
     CONFIG_ARGS=(
