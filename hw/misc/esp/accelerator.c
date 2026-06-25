@@ -1,5 +1,6 @@
 #include "hw/misc/esp/accelerator.h"
 
+#include "hw/misc/esp/regmap.h"
 #include "hw/misc/esp/helper/int.h"
 #include "hw/misc/esp/helper/dma.h"
 
@@ -174,7 +175,7 @@ static const MemoryRegionOps esp_accelerator_mmio_ops = {
     } while (0)
 
 DeviceState *esp_accelerator_create(ESPSubsystemState *esp, const char *type, hwaddr mmio_base, uint64_t mmio_size) {
-    DeviceState *dev = qdev_new(type);
+    DeviceState *dev = qdev_new(TYPE_ESP_ACCELERATOR);
     ESPAcceleratorState *s = ESP_ACCELERATOR(dev);
 
     s->esp = esp;
