@@ -1,6 +1,7 @@
 #include "hw/misc/esp/sm_queue.h"
 
 #include "hw/misc/esp/helper/dma.h"
+#include "system/memory.h"
 
 #define MPMC_DEGREE 2
 #define SM_ENTRY_SIZE (2 * MPMC_DEGREE)
@@ -13,129 +14,142 @@
 #define QUEUE_AVAIL 1
 #define QUEUE_BUSY 2
 
-/* TODO: Implement the sm_queue_can_push function and sm_queue_push function */
+/** 
+ * TODO: I just saw memory_region_get_ram_ptr, which returns the base pointer of the RAM region 
+ * However, from the comments, it seems that this function is dangerous to use, as calling it stops RCU protection. I don't know what RCU is, but after have a deeper understanding, I should come back and check if it can make the emulation faster.
+ */
 
-int sm_queue_can_push(uint64_t q) {
+int sm_queue_can_push(ESPAcceleratorState *s, uint64_t q) {
     int i;
-    uint64_t head, head_double_check, tail, head_slot, seq;
-    uint64_t q_init, q_next;
+    uint64_t head, tail, head_slot, seq, expected_head;
+    uint64_t current_queue;
     bool retry;
 
-    q_init = q;
     if (q == 0) {
         return false;
     }
 
-    for (i = 0; i < MPMC_DEGREE && q != 0; ++i) {
-        head = dma_read(q, offsetof(sm_queue_t, head), uint64_t);
-        tail = dma_read(q, offsetof(sm_queue_t, tail), uint64_t);
+    for (i = 0; i < MPMC_DEGREE; ++i) {
+        current_queue = s->sm_info_output_queue[i];
+        if (current_queue == 0) {
+            break;
+        }
+
+        head = dma_read(current_queue, offsetof(sm_queue_t, head), uint64_t);
+        tail = dma_read(current_queue, offsetof(sm_queue_t, tail), uint64_t);
         if ((head - tail) >= SM_QUEUE_SIZE) {
             return false;
         }
 
         head_slot = head % SM_QUEUE_SIZE;
-
-        seq = dma_read(q, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
+        seq = dma_read(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
         if (seq != head) {
             return false;
         }
 
-        q_next = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
-        if (q_next == 0) {
-            break;
-        }
-        q = q_next;
+        s->next_head_idx[i] = head;
     }
 
-    q = q_init;
     for (i = 0; i < MPMC_DEGREE; ++i) {
-        if (q == 0) {
+        current_queue = s->sm_info_output_queue[i];
+        if (current_queue == 0) {
             break;
         }
 
         retry = false;
         while (true) {
-            head = dma_read(q, offsetof(sm_queue_t, head), uint64_t);
-            head_slot = head % SM_QUEUE_SIZE;
+            head = s->next_head_idx[i];
             if (retry) {
-                seq = dma_read(q, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
+                head_slot = head % SM_QUEUE_SIZE;
+                seq = dma_read(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
                 if (seq != head) {
                     continue;
                 }
             }
 
-            /* reread, and check if someone else has updated it inside memory */
-            head_double_check = dma_read(q, offsetof(sm_queue_t, head), uint64_t);
-            if (head != head_double_check) {
-                head = head_double_check;
+            expected_head = dma_read(current_queue, offsetof(sm_queue_t, head), uint64_t);
+            if (head != expected_head) {
+                s->next_head_idx[i] = expected_head;
                 retry = true;
                 continue;
             }
-            dma_write(q, offsetof(sm_queue_t, head), head + 1, uint64_t);
-            break;
-        }
 
-        q_next = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
-        if (q_next == 0) {
+            dma_write(current_queue, offsetof(sm_queue_t, head), head + 1, uint64_t);
             break;
         }
-        q = q_next;
     }
+
     return true;
 }
 
-void sm_queue_push(uint64_t q, uint64_t entry) {
+void sm_queue_push(ESPAcceleratorState *s, uint64_t q, uint64_t entry) {
     int i;
     uint64_t head, head_slot;
-    volatile uint64_t tail __attribute__((unused));
+    uint64_t current_queue;
 
-    for (i = 0; i < MPMC_DEGREE && q != 0; ++i) {
-        head = dma_read(q, offsetof(sm_queue_t, head), uint64_t) - 1;
-        tail = dma_read(q, offsetof(sm_queue_t, tail), uint64_t);
+    for (i = 0; i < MPMC_DEGREE; ++i) {
+        current_queue = s->sm_info_output_queue[i];
+        if (current_queue == 0) {
+            break;
+        }
+        head = s->next_head_idx[i];
         head_slot = head % SM_QUEUE_SIZE;
-        dma_write(q, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, entry), entry, uint64_t);
-        dma_write(q, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), head + 1, uint64_t);
-        q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+        dma_write(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, entry), entry, uint64_t);
+        dma_write(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), head + 1, uint64_t);
     }
 }
 
-int sm_queue_can_pop(uint64_t q, void *data, uint64_t size) {
+int sm_queue_can_pop(ESPAcceleratorState *s, uint64_t q, void *data, uint64_t size) {
     int i;
-    uint64_t tail, tail_slot, seq, entry, next_q;
+    uint64_t tail, tail_slot, seq, entry, base;
+    uint64_t current_queue = q, next_queue;
+    // volatile void *ram_ptr __attribute__((unused));
 
     if (q == 0) {
+        /* TODO: check the necessity of valid_queue_ptr[MAX_CONTEXTS] */
         return false;
     }
 
     for (i = 0; i < MPMC_DEGREE; ++i) {
-        tail = dma_read(q, offsetof(sm_queue_t, tail), uint64_t);
+        s->curr_tail_idx[i] = tail = dma_read(current_queue, offsetof(sm_queue_t, tail), uint64_t);
         tail_slot = tail % SM_QUEUE_SIZE;
-        seq = dma_read(q, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
+        next_queue = dma_read(current_queue, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+        seq = dma_read(current_queue, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
         if (seq != (tail + 1)) {
             return false;
         }
 
-        next_q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
-        if (next_q == 0) {
+        if (next_queue == 0) {
             break;
         }
-        q = next_q;
+        current_queue = next_queue;
     }
 
-    entry = dma_read(q, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, entry), uint64_t) ;
-    dma_memory_read(&address_space_memory, 0xa0200000 + entry * sizeof(uint32_t), data, size, MEMTXATTRS_UNSPECIFIED); /* TODO: make base address elegant */
+    tail_slot = tail % SM_QUEUE_SIZE;
+    base = s->esp->sm.addr;
+    /* TODO: ram_ptr makes sense, I will refactor the access pattern later. */
+    // ram_ptr = memory_region_get_ram_ptr(&s->esp->sm);
+    entry = dma_read(current_queue, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, entry), uint64_t) * sizeof(uint32_t);
+    dma_memory_read(&address_space_memory, base + entry, data, size, MEMTXATTRS_UNSPECIFIED);
 
+    sm_queue_entry_t *output_info = (sm_queue_entry_t *)((uint8_t *)data + size) - MPMC_DEGREE;
+    for (i = 0; i < MPMC_DEGREE; ++i) {
+        s->sm_info_output_queue[i] = output_info[i].output_queue ? base + output_info[i].output_queue * sizeof(uint32_t) : 0;
+        s->sm_info_output_entry[i] = output_info[i].output_entry;
+    }
     return true;
 }
 
-void sm_queue_pop(uint64_t q) {
+void sm_queue_pop(ESPAcceleratorState *s, uint64_t q) {
     int i;
-    uint64_t tail;
+    uint64_t tail, tail_slot;
+    uint64_t current_queue = q;
 
-    for (i = 0; i < MPMC_DEGREE && q != 0; ++i) {
-        tail = dma_read(q, offsetof(sm_queue_t, tail), uint64_t);
-        dma_write(q, offsetof(sm_queue_t, slot[tail % SM_QUEUE_SIZE]) + offsetof(sm_queue_slot_t, seq), tail + SM_QUEUE_SIZE, uint64_t);
-        dma_write(q, offsetof(sm_queue_t, tail), tail + 1, uint64_t);
-        q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+    for (i = 0; i < MPMC_DEGREE && current_queue != 0; ++i) {
+        tail = s->curr_tail_idx[i];
+        tail_slot = tail % SM_QUEUE_SIZE;
+        dma_write(current_queue, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, seq), tail + SM_QUEUE_SIZE, uint64_t);
+        dma_write(current_queue, offsetof(sm_queue_t, tail), tail + 1, uint64_t);
+        current_queue = dma_read(current_queue, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
     }
 }

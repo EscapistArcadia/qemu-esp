@@ -21,7 +21,7 @@
 static void *esp_accelerator_execute(void *opaque) {
     ESPAcceleratorState *s = opaque;
 
-    uint64_t pt_base, input_queue_base, output_queue_base;
+    uint64_t pt_base, input_queue_base;
     uint32_t next_context;
     GemmStratusEntry gemm_params; /* TODO: generalize the configuration */
 
@@ -32,12 +32,12 @@ static void *esp_accelerator_execute(void *opaque) {
                 pt_base = dma_read(MAKEDWORD(s->pt_address_low[next_context], s->pt_address_high), 0, uint32_t);
                 input_queue_base = pt_base + s->queue_ptr[next_context] * sizeof(uint32_t);
                 
-                if (!sm_queue_can_pop(input_queue_base, &gemm_params, sizeof(GemmStratusEntry))) {
+                if (!sm_queue_can_pop(s, input_queue_base, &gemm_params, sizeof(GemmStratusEntry))) {
                     continue;
                 }
                 
-                output_queue_base = pt_base + gemm_params.output[0].output_queue * sizeof(uint32_t);
-                if (!sm_queue_can_push(output_queue_base)) {
+                // output_queue_base = pt_base + gemm_params.output[0].output_queue * sizeof(uint32_t);
+                if (!sm_queue_can_push(s, s->sm_info_output_queue[0])) {
                     continue;
                 }
 
@@ -61,8 +61,8 @@ static void *esp_accelerator_execute(void *opaque) {
 
                 /* execute the GEMM operation */
 
-                sm_queue_pop(input_queue_base);
-                sm_queue_push(output_queue_base, gemm_params.output[0].output_entry);
+                sm_queue_pop(s, input_queue_base);
+                sm_queue_push(s, s->sm_info_output_queue[0], s->sm_info_output_entry[0]);
             }
         }
     }
@@ -173,9 +173,11 @@ static const MemoryRegionOps esp_accelerator_mmio_ops = {
         memory_region_add_subregion(get_system_memory(), base, &mr); \
     } while (0)
 
-DeviceState *esp_accelerator_create(const char *type, hwaddr mmio_base, uint64_t mmio_size) {
+DeviceState *esp_accelerator_create(ESPSubsystemState *esp, const char *type, hwaddr mmio_base, uint64_t mmio_size) {
     DeviceState *dev = qdev_new(type);
     ESPAcceleratorState *s = ESP_ACCELERATOR(dev);
+
+    s->esp = esp;
 
     /* TODO: generate unique name */
     INIT_MMIO_REGION(s->mmio, "esp_accelerator", mmio_base, mmio_size);
@@ -190,6 +192,9 @@ DeviceState *esp_accelerator_create(const char *type, hwaddr mmio_base, uint64_t
 
 static const TypeInfo esp_accelerator_info = {
     .name = TYPE_ESP_ACCELERATOR,
+    /**
+     * You know, I even found that this has been wrong for a long time just after I realized that this is actually correct. There should be no inheritance relationship between the accelerator and the subsystem. Otherwise, every time the accelerator is created, the subsystem will be created again, which is not what I desired.
+     */
     .parent = TYPE_SYS_BUS_DEVICE,
     .instance_size = sizeof(ESPAcceleratorState),
 

@@ -2,6 +2,7 @@
 #define VIRT_SM_QUEUE_H
 
 #include <stdint.h>
+#include "hw/misc/esp/accelerator.h"
 
 #define SM_QUEUE_SIZE 4
 
@@ -23,12 +24,12 @@ typedef struct {
     sm_queue_slot_t slot[SM_QUEUE_SIZE];
 } sm_queue_t;
 
-int sm_queue_can_push(uint64_t q);
+int sm_queue_can_push(ESPAcceleratorState *s, uint64_t q);
 
-void sm_queue_push(uint64_t q, uint64_t entry);
+void sm_queue_push(ESPAcceleratorState *s, uint64_t q, uint64_t entry);
 
-int sm_queue_can_pop(uint64_t q, void *data, uint64_t size);
+int sm_queue_can_pop(ESPAcceleratorState *s, uint64_t q, void *data, uint64_t size);
 
-void sm_queue_pop(uint64_t q);
+void sm_queue_pop(ESPAcceleratorState *s, uint64_t q);
 
 #endif

@@ -32,7 +32,7 @@ DeviceState *esp_subsystem_init(void) {
     INIT_RAM_REGION(s->greth, ESP_GRETH_RESERVED_NAME, ESP_GRETH_RESERVED_BASE, ESP_GRETH_RESERVED_SIZE);
 
     /* TODO: automatically create all accelerators from the device tree */
-    esp_accelerator_create(TYPE_GEMM_STRATUS, GEMM_STRATUS_MMIO_BASE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, TYPE_GEMM_STRATUS, GEMM_STRATUS_MMIO_BASE, GEMM_STRATUS_MMIO_SIZE);
 
     return dev;
 }
