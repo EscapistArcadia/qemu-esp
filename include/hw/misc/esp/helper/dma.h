@@ -1,19 +1,21 @@
 #ifndef ESP_HELPER_DMA_H
 #define ESP_HELPER_DMA_H
 
-// #include "system/address-spaces.h"
-// #include "system/dma.h"
+#include "qemu/osdep.h"
+#include "system/address-spaces.h"
+#include "system/dma.h"
 
 #define dma_read(base, offset, type) \
     ({ \
-        type value; \
-        dma_memory_read(&address_space_memory, base + offset, &value, sizeof(type), MEMTXATTRS_UNSPECIFIED); \
-        value; \
+        type vvs; \
+        dma_memory_read(&address_space_memory, base + offset, &vvs, sizeof(type), MEMTXATTRS_UNSPECIFIED); \
+        vvs; \
     })
 
 #define dma_write(base, offset, value, type) \
-    do { \
-        dma_memory_write(&address_space_memory, base + offset, &value, sizeof(type), MEMTXATTRS_UNSPECIFIED); \
-    } while (0)
+    ({ \
+        type vvs = value; \
+        dma_memory_write(&address_space_memory, base + offset, &vvs, sizeof(type), MEMTXATTRS_UNSPECIFIED); \
+    })
 
 #endif
