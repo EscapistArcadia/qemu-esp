@@ -9,16 +9,6 @@
 #define ESP_ACCELERATOR_MMIO_BASE (0x60010000)
 #define ESP_ACCELERATOR_MMIO_SIZE (0x100)
 
-#define ESP_ACCELERATOR_MMIO_READ_VERBOSE(name, size) \
-    case name: \
-        printf("[QEMU] MMIO READ 0x%08"HWADDR_PRIx" (%s)\n", addr, #name); \
-        break;
-
-#define ESP_ACCELERATOR_MMIO_WRITE_VERBOSE(name, content, size) \
-    case name: \
-        printf("[QEMU] MMIO WRITE 0x%08"HWADDR_PRIx" (%s) = 0x%016"PRIx64"\n", addr, #name, content); \
-        break;
-
 #if 1
 #include "accelerator_mmio_verbose.inc"
 #else
