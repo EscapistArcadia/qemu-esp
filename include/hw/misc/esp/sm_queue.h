@@ -23,12 +23,12 @@ typedef struct {
     sm_queue_slot_t slot[SM_QUEUE_SIZE];
 } sm_queue_t;
 
-int sm_queue_can_push(uint64_t q, uint64_t head_idx);
+int sm_queue_can_push(uint64_t q);
 
-void sm_queue_push(uint64_t q, uint64_t head_idx, uint64_t value);
+void sm_queue_push(uint64_t q, uint64_t entry);
 
-int sm_queue_can_pop(uint64_t q, uint64_t *value);
+int sm_queue_can_pop(uint64_t q, void *data, uint64_t size);
 
-uint64_t sm_queue_pop(uint64_t q);
+void sm_queue_pop(uint64_t q);
 
 #endif
