@@ -2,6 +2,7 @@
 #define ESP_GEMM_STRATUS_H
 
 #include "hw/misc/esp/accelerator.h"
+#include "hw/misc/esp/sm_queue.h"
 
 #define TYPE_GEMM_STRATUS "gemm_stratus"
 
@@ -19,9 +20,7 @@ enum GemmStratusMMIORegisters {
     GEMM_TRANSPOSE_REG = ESP_ACCELERATOR_MMIO_MAX + 0x2c,
 };
 
-struct GemmStratusState {
-    ESPAcceleratorState parent_obj;
-
+typedef struct GemmStratusConf {
     uint32_t ninputs;
     uint32_t d1, d2, d3;
     uint32_t ld_offset1, ld_offset2;
@@ -30,6 +29,18 @@ struct GemmStratusState {
     uint32_t do_relu;
     uint32_t do_bias;
     uint32_t transpose;
+    uint32_t padding;
+} GemmStratusConf;
+
+typedef struct GemmStratusEntry {
+    GemmStratusConf gemm_params;
+    sm_queue_entry_t output[2];
+} GemmStratusEntry;
+
+struct GemmStratusState {
+    ESPAcceleratorState parent_obj;
+
+    GemmStratusConf gemm_params;
 };
 
 typedef struct GemmStratusState GemmStratusState;
