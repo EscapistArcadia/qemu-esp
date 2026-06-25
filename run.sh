@@ -17,6 +17,7 @@ RISCV_TOOLCHAIN_PATH="$HOME/riscv"
 ESP_ROOT="$HOME/esp_virtuoso"
 HOST_GDB_COMMANDS=()
 GUEST_GDB_COMMANDS=()
+GUEST_LINUX_COMMANDS=()
 BOARD_SUFFIX=""
 EXAMPLES=()
 
@@ -55,6 +56,16 @@ while [[ $# -gt 0 ]]; do
             shift
             while [[ $# -gt 0 && ! "$1" == --* ]]; do
                 EXAMPLES+=("$1")
+                shift
+            done
+            ;;
+        --cmd)
+            # Add the following lines to the end of the /etc/init.d/rcS
+            # AUTORUN=$(cat /proc/cmdline | tr ' ' '\n' | grep '^autorun=' | cut -d= -f2-)
+            # [ -n "$AUTORUN" ] && eval "$AUTORUN"
+            shift
+            while [[ $# -gt 0 && ! "$1" == --* ]]; do
+                GUEST_LINUX_COMMANDS+=("$1")
                 shift
             done
             ;;
@@ -252,7 +263,8 @@ if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
         for d in $(ls -d $VIRTUAL_ACC_APP_EXAMPLES/*/); do
             if [[ "$d" == *"$example"* ]]; then
                 pushd "$d"
-                make clean && make -j `nproc`
+                make clean
+                make -j `nproc` ENABLE_SM=1 ENABLE_VIRT=1
                 popd
             fi
         done
@@ -324,6 +336,15 @@ if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
     dtc -I dts -O dtb "$DTS" > "$DTB"
 fi
 
+KERNEL_CMDLINE="console=ttyS0,115200"
+if [[ ${#GUEST_LINUX_COMMANDS[@]} -gt 0 ]]; then
+    AUTORUN_STR="${GUEST_LINUX_COMMANDS[0]}"
+    for cmd in "${GUEST_LINUX_COMMANDS[@]:1}"; do
+        AUTORUN_STR+="&&$cmd"
+    done
+    KERNEL_CMDLINE+=" autorun=$AUTORUN_STR"
+fi
+
 HOST_QEMU_ARGS=()
 
 if [[ $RUN_WITH_GDB -eq 1 ]]; then
@@ -346,7 +367,7 @@ HOST_QEMU_ARGS+=(
     "-kernel" "$ESP_LINUX_IMAGE"
     # "-initrd" "$ESP_FILESYS_IMAGE"
     "-dtb" "$DTB"
-    "-append" "\"console=ttyS0,115200\""
+    "-append" "$KERNEL_CMDLINE"
 )
 
 if [[ $QEMU_NOGRAPHIC -eq 1 ]]; then
@@ -361,6 +382,7 @@ if [[ $QEMU_NOGRAPHIC -eq 1 ]]; then
         )
     fi
 fi
+
 if [[ $DEBUG_LINUX -eq 1 ]]; then
     HOST_QEMU_ARGS+=(
         "-S" # pause CPU at reset, wait for GDB connection
