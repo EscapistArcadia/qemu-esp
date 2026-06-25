@@ -1,8 +1,5 @@
 #include "hw/misc/esp/accelerator.h"
 
-#include "system/address-spaces.h"
-#include "system/dma.h"
-
 #include "hw/misc/esp/helper/int.h"
 #include "hw/misc/esp/helper/dma.h"
 
@@ -32,24 +29,20 @@
 static void *esp_accelerator_execute(void *opaque) {
     ESPAcceleratorState *s = opaque;
 
-    uint64_t pt_base, pt_address, queue_base;
+    uint64_t pt_base, queue_base;
     uint32_t next_context;
 
-    uint64_t tail, seq;
+    uint64_t entry;
 
     while (1) {
+        /* TODO: replace with the check_next_context logic from the real hardware implementation */
         for (next_context = 0; next_context < MAX_CONTEXTS; ++next_context) {
             if (IS_VALID_CONTEXT(s->valid_contexts, next_context)) {
-                pt_address = MAKEDWORD(s->pt_address_low[next_context], s->pt_address_high);
-                pt_base = dma_read(pt_address, 0, uint32_t);
+                pt_base = dma_read(MAKEDWORD(s->pt_address_low[next_context], s->pt_address_high), 0, uint32_t);
                 queue_base = pt_base + s->queue_ptr[next_context] * sizeof(uint32_t);
 
-                tail = dma_read(queue_base, offsetof(sm_queue_t, tail), uint64_t) % SM_QUEUE_SIZE;
-                seq = dma_read(queue_base, offsetof(sm_queue_t, slot[tail]), uint64_t);
-
-                if (seq == (tail + 1)) {
-                    printf("[QEMU] Processing context %u with parameters: pt_address=0x%016"PRIx64", queue_base=0x%016"PRIx64"\n",
-                        next_context, pt_address, queue_base);
+                if (sm_queue_can_pop(queue_base, &entry)) {
+                    printf("[QEMU] Context %u popped entry 0x%016"PRIx64" from queue at 0x%016"PRIx64"\n", next_context, entry, queue_base);
                     g_usleep(1000000);
                     break;
                 }
