@@ -2,6 +2,7 @@
 #define ESP_ACCELERATOR_H
 
 #include "hw/misc/esp/subsystem.h"
+#include "hw/misc/esp/accelerators/template.h"
 
 #define TYPE_ESP_ACCELERATOR "esp_accelerator"
 
@@ -14,6 +15,9 @@ struct ESPAcceleratorState {
 
     /* Subsystem object to access shared memory */
     ESPSubsystemState *esp;
+
+    /* Accelerator information */
+    ESPAccelerator *accel;
 
     /* Accelerator MMIO region */
     MemoryRegion mmio;

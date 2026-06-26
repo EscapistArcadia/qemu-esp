@@ -1,7 +1,6 @@
 #include "hw/misc/esp/subsystem.h"
 
 #include "hw/misc/esp/accelerator.h"
-#include "hw/misc/esp/accelerators/gemm_stratus.h"
 #include "system/address-spaces.h"
 #include "qapi/error.h"
 

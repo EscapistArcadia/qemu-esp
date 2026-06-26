@@ -1,21 +1,6 @@
-// #include "hw/misc/esp/accelerators/gemm_stratus.h"
+#include "hw/misc/esp/accelerators/template.h"
 #include "hw/misc/esp/regmap.h"
-
-// static const TypeInfo gemm_stratus_info = {
-//     .name = TYPE_GEMM_STRATUS,
-//     .parent = TYPE_ESP_ACCELERATOR,
-//     .instance_size = sizeof(GemmStratusState),
-// };
-
-// static void gemm_stratus_register_types(void) {
-//     type_register_static(&gemm_stratus_info);
-// }
-
-// type_init(gemm_stratus_register_types)
-
-
-
-// #define TYPE_GEMM_STRATUS "gemm_stratus"
+#include "hw/misc/esp/sm_queue.h"
 
 enum GemmStratusMMIORegisters {
     GEMM_NINPUTS_REG = ESP_ACCELERATOR_MMIO_MAX + 0x04,
@@ -29,4 +14,25 @@ enum GemmStratusMMIORegisters {
     GEMM_DO_RELU_REG = ESP_ACCELERATOR_MMIO_MAX + 0x24,
     GEMM_DO_BIAS_REG = ESP_ACCELERATOR_MMIO_MAX + 0x28,
     GEMM_TRANSPOSE_REG = ESP_ACCELERATOR_MMIO_MAX + 0x2c,
+};
+
+typedef struct GemmStratusConf {
+    uint32_t ninputs;
+    uint32_t d1, d2, d3;
+    uint32_t ld_offset1, ld_offset2;
+    uint32_t bias_offset;
+    uint32_t st_offset;
+    uint32_t do_relu;
+    uint32_t do_bias;
+    uint32_t transpose;
+    uint32_t padding;
+} GemmStratusConf;
+
+typedef struct GemmStratusEntry {
+    GemmStratusConf gemm_params;
+    sm_queue_entry_t output[MPMC_DEGREE];
+} GemmStratusEntry;
+
+ESPAccelerator gemm_stratus = {
+    .conf_size = sizeof(GemmStratusConf),
 };
