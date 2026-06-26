@@ -43,6 +43,7 @@ static void *esp_accelerator_execute(void *opaque) {
                 }
 
                 /* execute the GEMM operation */
+                s->accel->execute(s, gemm_params_temp);
 
                 sm_queue_pop(s, input_queue_base);
                 sm_queue_push(s, s->sm_info_output_queue[0], s->sm_info_output_entry[0]);

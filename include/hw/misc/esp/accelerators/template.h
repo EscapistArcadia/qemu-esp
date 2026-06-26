@@ -3,8 +3,12 @@
 
 #include <stdint.h>
 
+typedef struct ESPAcceleratorState ESPAcceleratorState; /* Learning: this can fix recursive includes */
+
 typedef struct ESPAccelerator {
     uint64_t conf_size;
+
+    void (*execute)(ESPAcceleratorState *s, void *param);
 } ESPAccelerator;
 
 #endif
