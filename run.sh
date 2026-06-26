@@ -131,7 +131,7 @@ while [[ $# -gt 0 ]]; do
             shift
 
             while [[ $# -gt 0 && ! "$1" == --* ]]; do
-                GDB_COMMANDS+=("$1")
+                HOST_GDB_COMMANDS+=("$1")
                 shift
             done
             ;;
