@@ -6,6 +6,10 @@
 
 #define SM_QUEUE_SIZE 4
 
+#define QUEUE_INVALID 0
+#define QUEUE_AVAIL 1
+#define QUEUE_BUSY 2
+
 typedef struct {
     unsigned output_queue;
     unsigned output_entry;

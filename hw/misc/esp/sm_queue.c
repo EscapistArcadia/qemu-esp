@@ -10,10 +10,6 @@
 #define SM_SLOT_SIZE 4
 #define SM_QUEUE_WORDS (SM_COMMON_SIZE + (SM_SLOT_SIZE * SM_QUEUE_SIZE))
 
-#define QUEUE_INVALID 0
-#define QUEUE_AVAIL 1
-#define QUEUE_BUSY 2
-
 /** 
  * TODO: I just saw memory_region_get_ram_ptr, which returns the base pointer of the RAM region 
  * However, from the comments, it seems that this function is dangerous to use, as calling it stops RCU protection. I don't know what RCU is, but after have a deeper understanding, I should come back and check if it can make the emulation faster.
