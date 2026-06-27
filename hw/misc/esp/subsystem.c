@@ -18,7 +18,6 @@
 
 #define INIT_RAM_REGION(mr, name, base, size) \
     do { \
-        sysbus_init_mmio(SYS_BUS_DEVICE(s), &mr); \
         memory_region_init_ram(&mr, OBJECT(s), name, size, &error_fatal); \
         memory_region_add_subregion(get_system_memory(), base, &mr); \
     } while (0)
