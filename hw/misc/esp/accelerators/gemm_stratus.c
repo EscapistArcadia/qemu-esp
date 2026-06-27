@@ -34,6 +34,14 @@ typedef struct GemmStratusEntry {
     sm_queue_entry_t output[MPMC_DEGREE];
 } GemmStratusEntry;
 
+static uint64_t gemm_stratus_mmio_read(ESPAcceleratorState *s, hwaddr addr, unsigned size) {
+    return 0;
+}
+
+static void gemm_stratus_mmio_write(ESPAcceleratorState *s, hwaddr addr, uint64_t data, unsigned size) {
+
+}
+
 static void gemm_stratus_execute(ESPAcceleratorState *s, void *param) {
     GemmStratusConf *p = (GemmStratusConf *)param;
 
@@ -96,8 +104,22 @@ static void gemm_stratus_execute(ESPAcceleratorState *s, void *param) {
     g_free(bias);
 }
 
-ESPAccelerator gemm_stratus = {
+ESPAccelerator gemm_stratus_rr = {
     .conf_size = sizeof(GemmStratusConf),
 
+    .mmio_read = gemm_stratus_mmio_read,
+    .mmio_write = gemm_stratus_mmio_write,
+
+    .pick_context = pick_context_rr,
+    .execute = gemm_stratus_execute,
+};
+
+ESPAccelerator gemm_stratus_fair = {
+    .conf_size = sizeof(GemmStratusConf),
+
+    .mmio_read = gemm_stratus_mmio_read,
+    .mmio_write = gemm_stratus_mmio_write,
+
+    .pick_context = pick_context_fair,
     .execute = gemm_stratus_execute,
 };

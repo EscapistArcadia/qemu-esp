@@ -39,11 +39,22 @@ struct ESPAcceleratorState {
     uint64_t next_head_idx[MPMC_DEGREE];
     uint64_t sm_info_output_queue[MPMC_DEGREE];
     uint64_t sm_info_output_entry[MPMC_DEGREE];
+
+    /* Scheduler state (mirrors esp_accelerator_amu member variables) */
+    uint32_t current_context;
+    uint32_t current_context_next;          /* RR: starting index for next round */
+    uint32_t context_vruntime[MAX_CONTEXTS];
+    uint64_t context_runtime[MAX_CONTEXTS];
+    uint32_t valid_queue_ptr;               /* bitmap: contexts with BUSY queues */
+    uint32_t prev_valid_contexts;           /* previous valid_contexts for transition detection */
 };
 
 typedef struct ESPAcceleratorState ESPAcceleratorState;
 DECLARE_INSTANCE_CHECKER(ESPAcceleratorState, ESP_ACCELERATOR, TYPE_ESP_ACCELERATOR)
 
 DeviceState *esp_accelerator_create(ESPSubsystemState *esp, const char *type, hwaddr mmio_base, uint64_t mmio_size);
+
+void pick_context_rr(ESPAcceleratorState *s, bool bias_switch);
+void pick_context_fair(ESPAcceleratorState *s, bool bias_switch);
 
 #endif
