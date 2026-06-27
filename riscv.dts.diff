@@ -1,0 +1,20 @@
+79c79
+<       compatible = "ns16550a";
+---
+>       compatible = "gaisler,apbuart";
+81c81
+<       clock-frequency = <78125000>;
+---
+>       freq = <78125000>;
+83,85c83,85
+<       interrupts = <10>;
+<       // reg-shift = <2>; // regs are spaced on 32 bit boundary
+<       // reg-io-width = <4>; // only 32-bit access are supported
+---
+>       interrupts = <3>;
+>       reg-shift = <2>; // regs are spaced on 32 bit boundary
+>       reg-io-width = <4>; // only 32-bit access are supported
+94c94
+<       local-mac-address = [00 00 9e 58 ab 2f];
+---
+>       local-mac-address = [00 00 28 39 c2 68];

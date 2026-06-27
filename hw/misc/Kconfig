@@ -257,7 +257,7 @@ config XLNX_VERSAL_TRNG
 config XLNX_ZYNQ_DDRC
     bool
 
-config GEMM_STRATUS
+config ESP_FPGA
     bool
     default y
     depends on RISCV_VIRT

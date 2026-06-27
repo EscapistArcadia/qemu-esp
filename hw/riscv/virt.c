@@ -60,7 +60,7 @@
 #include "qapi/qapi-visit-common.h"
 #include "hw/virtio/virtio-iommu.h"
 #include "hw/uefi/var-service-api.h"
-#include "hw/misc/gemm_stratus.h"
+#include "hw/misc/esp/subsystem.h"
 #include "hw/misc/unimp.h"
 
 /* KVM AIA only supports APLIC MSI. APLIC Wired is always emulated by QEMU. */
@@ -1625,7 +1625,7 @@ static void virt_machine_init(MachineState *machine)
     create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
     // create_unimplemented_device("esp_accel_reserved", 0xa0200000, 0x1fe00000);
     
-    gemm_stratus_create();
+    esp_subsystem_init();
 }
 
 static void virt_machine_instance_finalize(Object *obj)

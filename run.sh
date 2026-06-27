@@ -4,9 +4,10 @@ set -e
 
 REBUILD_QEMU=0
 CLEAN_REBUILD_QEMU=0
-REBUILD_ESP=0
-CLEAN_REBUILD_ESP=0
-QEMU_STDIO=0
+REBUILD_LINUX=0
+CLEAN_REBUILD_LINUX=0
+REBUILD_FILESYSTEM=0
+QEMU_NOGRAPHIC=0
 RUN_WITH_GDB=0
 DEBUG_LINUX=0
 QEMU_GUEST_LINUX=0
@@ -16,6 +17,7 @@ RISCV_TOOLCHAIN_PATH="$HOME/riscv"
 ESP_ROOT="$HOME/esp_virtuoso"
 HOST_GDB_COMMANDS=()
 GUEST_GDB_COMMANDS=()
+GUEST_LINUX_COMMANDS=()
 BOARD_SUFFIX=""
 EXAMPLES=()
 
@@ -57,6 +59,16 @@ while [[ $# -gt 0 ]]; do
                 shift
             done
             ;;
+        --cmd)
+            # Add the following lines to the end of the /etc/init.d/rcS
+            # AUTORUN=$(cat /proc/cmdline | tr ' ' '\n' | grep '^autorun=' | cut -d= -f2-)
+            # [ -n "$AUTORUN" ] && eval "$AUTORUN"
+            shift
+            while [[ $# -gt 0 && ! "$1" == --* ]]; do
+                GUEST_LINUX_COMMANDS+=("$1")
+                shift
+            done
+            ;;
         --dts)
             if [[ $# -gt 1 ]]; then
                 if [[ -v DTB ]]; then
@@ -94,20 +106,24 @@ while [[ $# -gt 0 ]]; do
             REBUILD_QEMU=1
             shift
             ;;
-        --rebuild-esp)
-            REBUILD_ESP=1
+        --rebuild-linux)
+            REBUILD_LINUX=1
+            shift
+            ;;
+        --rebuild-filesys)
+            REBUILD_FILESYSTEM=1
             shift
             ;;
         --clean-rebuild-qemu)
             CLEAN_REBUILD_QEMU=1
             shift
             ;;
-        --clean-rebuild-esp)
-            CLEAN_REBUILD_ESP=1
+        --clean-rebuild-linux)
+            CLEAN_REBUILD_LINUX=1
             shift
             ;;
         --nographic)
-            QEMU_STDIO=1
+            QEMU_NOGRAPHIC=1
             shift
             ;;
         --gdb-qemu)
@@ -115,7 +131,7 @@ while [[ $# -gt 0 ]]; do
             shift
 
             while [[ $# -gt 0 && ! "$1" == --* ]]; do
-                GDB_COMMANDS+=("$1")
+                HOST_GDB_COMMANDS+=("$1")
                 shift
             done
             ;;
@@ -156,6 +172,7 @@ ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
 ESP_LINUX_VMLINUX="$ESP_LINUX_ARIANE_BUILD/vmlinux"
 ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
 ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
+ESP_FILESYS_LIST="$ESP_SOC/soft-build/ariane/sysroot.files"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 VIRTUAL_ACC_APP_ROOT="$ESP_ROOT/soft/ariane/virtual-acc-app"
 VIRTUAL_ACC_APP_MAKEFILE="$VIRTUAL_ACC_APP_ROOT/Makefile"
@@ -239,23 +256,35 @@ if [[ ${#EXAMPLES[@]} -gt 0 ]]; then
         popd
     fi
 
-    sed -i "66c ESP_EXE_DIR = $ESP_ROOT/socs/$BOARD_DIR/soft-build/ariane/sysroot/applications/test" "$VIRTUAL_ACC_APP_MAKEFILE"
+    sed -i "67c ESP_EXE_DIR = $ESP_ROOT/socs/$BOARD_DIR/soft-build/ariane/sysroot/applications/test" "$VIRTUAL_ACC_APP_MAKEFILE"
 
     # Build examples under "virtual-acc-app"
     for example in "${EXAMPLES[@]}"; do
         for d in $(ls -d $VIRTUAL_ACC_APP_EXAMPLES/*/); do
             if [[ "$d" == *"$example"* ]]; then
                 pushd "$d"
-                make clean && make -j `nproc`
+                make clean
+                make -j `nproc` ENABLE_SM=1 ENABLE_VIRT=1
                 popd
             fi
         done
     done
+
+    REBUILD_FILESYSTEM=1
 fi
 
-REBUILD_LINUX=0
+if [[ $REBUILD_FILESYSTEM -eq 1 ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
+    pushd "$ESP_SOC"
+    
+    rm "$ESP_FILESYS_LIST" "$ESP_FILESYS_IMAGE" || true
+    make $ESP_LINUX_VMLINUX -j `nproc`
+
+    popd
+fi
+
+BUILD_LINUX_TWICE=0
 # Build Linux image and file system image if necessary
-if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]] || [[ ${#EXAMPLES[@]} -gt 0 ]]; then
+if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$ESP_LINUX_IMAGE" ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]] || [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
     pushd "$ESP_SOC"
 
     CONFIG_ARGS=(
@@ -279,11 +308,11 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
         "-e" "KALLSYMS_ALL"
     )
 
-    if [[ $CLEAN_REBUILD_ESP -eq 1 ]]; then
-        REBUILD_LINUX=1
+    if [[ $CLEAN_REBUILD_LINUX -eq 1 ]]; then
+        BUILD_LINUX_TWICE=1
         make linux-distclean
     elif [[ ! -f "$ESP_LINUX_ARIANE_CONFIG" ]]; then
-        REBUILD_LINUX=1
+        BUILD_LINUX_TWICE=1
     else
         pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
@@ -292,7 +321,7 @@ if [[ $REBUILD_ESP -eq 1 ]]  || [[ $CLEAN_REBUILD_ESP -eq 1 ]] || [[ ! -f "$ESP_
 
     make linux -j `nproc`
 
-    if [[ $REBUILD_LINUX -eq 1 ]]; then
+    if [[ $BUILD_LINUX_TWICE -eq 1 ]]; then
         pushd "$ESP_LINUX_ARIANE_ROOT"
         "${CONFIG_ARGS[@]}"
         popd
@@ -305,6 +334,15 @@ fi
 if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
     DTB=$(basename "$DTS" .dts).dtb
     dtc -I dts -O dtb "$DTS" > "$DTB"
+fi
+
+KERNEL_CMDLINE="console=ttyS0,115200"
+if [[ ${#GUEST_LINUX_COMMANDS[@]} -gt 0 ]]; then
+    AUTORUN_STR="${GUEST_LINUX_COMMANDS[0]}"
+    for cmd in "${GUEST_LINUX_COMMANDS[@]:1}"; do
+        AUTORUN_STR+="&&$cmd"
+    done
+    KERNEL_CMDLINE+=" autorun=$AUTORUN_STR"
 fi
 
 HOST_QEMU_ARGS=()
@@ -327,20 +365,24 @@ HOST_QEMU_ARGS+=(
     "-bios" "default"
     # "-bios" "$ESP_OPENSBI_FIRMWARE"
     "-kernel" "$ESP_LINUX_IMAGE"
-    "-initrd" "$ESP_FILESYS_IMAGE"
+    # "-initrd" "$ESP_FILESYS_IMAGE"
     "-dtb" "$DTB"
-    "-append" "\"console=ttyS0,115200\""
+    "-append" "$KERNEL_CMDLINE"
 )
 
-if [[ $QEMU_STDIO -eq 1 ]]; then
-    # HOST_QEMU_ARGS+=(
-    #     "-display" "none"
-    #     "-serial" "stdio"
-    # )
-    HOST_QEMU_ARGS+=(
-        "-nographic"
-    )
+if [[ $QEMU_NOGRAPHIC -eq 1 ]]; then
+    if [[ $RUN_WITH_GDB -eq 1 ]]; then
+        HOST_QEMU_ARGS+=(
+            "-display" "none"
+            "-serial" "stdio"
+        )
+    else
+        HOST_QEMU_ARGS+=(
+            "-nographic"
+        )
+    fi
 fi
+
 if [[ $DEBUG_LINUX -eq 1 ]]; then
     HOST_QEMU_ARGS+=(
         "-S" # pause CPU at reset, wait for GDB connection
