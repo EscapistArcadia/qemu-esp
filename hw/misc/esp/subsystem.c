@@ -32,6 +32,11 @@ DeviceState *esp_subsystem_init(void) {
 
     /* TODO: automatically create all accelerators from the device tree */
     esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE + GEMM_STRATUS_MMIO_SIZE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE + 2 * GEMM_STRATUS_MMIO_SIZE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE + 3 * GEMM_STRATUS_MMIO_SIZE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE + 4 * GEMM_STRATUS_MMIO_SIZE, GEMM_STRATUS_MMIO_SIZE);
+    esp_accelerator_create(s, NULL, GEMM_STRATUS_MMIO_BASE + 5 * GEMM_STRATUS_MMIO_SIZE, GEMM_STRATUS_MMIO_SIZE);
 
     return dev;
 }
