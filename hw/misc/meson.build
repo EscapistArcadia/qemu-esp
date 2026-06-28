@@ -173,5 +173,6 @@ system_ss.add(when: 'CONFIG_ESP_FPGA', if_true: files(
   'esp/subsystem.c',
   'esp/accelerator.c',
   'esp/sm_queue.c',
+  'esp/type.c',
   'esp/accelerators/gemm_stratus.c',
 ))
