@@ -47,6 +47,8 @@ struct ESPAcceleratorState {
     uint64_t context_runtime[MAX_CONTEXTS];
     uint32_t valid_queue_ptr;               /* bitmap: contexts with BUSY queues */
     uint32_t prev_valid_contexts;           /* previous valid_contexts for transition detection */
+
+    QLIST_ENTRY(ESPAcceleratorState) node;
 };
 
 typedef struct ESPAcceleratorState ESPAcceleratorState;

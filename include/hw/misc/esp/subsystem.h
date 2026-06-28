@@ -5,6 +5,7 @@
 #include "qom/object.h"
 #include "hw/core/sysbus.h"
 #include "hw/core/qdev.h"
+#include "qemu/queue.h"
 
 #define TYPE_ESP_SUBSYSTEM "esp_subsystem"
 
@@ -16,6 +17,9 @@ struct ESPSubsystemState {
 
     /* Shared memory region */
     MemoryRegion sm;
+
+    /* Accelerator instance list */
+    QLIST_HEAD(, ESPAcceleratorState) accelerators;
 };
 
 typedef struct ESPSubsystemState ESPSubsystemState;

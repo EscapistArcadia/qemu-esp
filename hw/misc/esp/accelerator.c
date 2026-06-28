@@ -369,6 +369,8 @@ DeviceState *esp_accelerator_create(ESPSubsystemState *esp, ESPAccelerator *acce
     DeviceState *dev = qdev_new(TYPE_ESP_ACCELERATOR);
     ESPAcceleratorState *s = ESP_ACCELERATOR(dev);
 
+    QLIST_INSERT_HEAD(&esp->accelerators, s, node);
+
     s->esp = esp;
     s->accel = accel;
 

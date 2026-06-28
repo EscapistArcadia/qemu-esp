@@ -60,6 +60,8 @@ DeviceState *esp_subsystem_init(void *fdt) {
     hwaddr mr_base;
     uint64_t mr_size;
 
+    QLIST_INIT(&s->accelerators);
+
     symbol_offset = fdt_path_offset(fdt, "/__symbols__"); /* TODO: any better ways to skip symbols? */
     if (symbol_offset < 0) {
         error_report("Symbols node not found in the device tree, please regenerate dtb with -@ option");
