@@ -110,6 +110,8 @@ int sm_queue_can_pop(ESPAcceleratorState *s, uint64_t q, void *data, uint64_t si
         s->curr_tail_idx[i] = tail = dma_read(current_queue, offsetof(sm_queue_t, tail), uint64_t);
         tail_slot = tail % SM_QUEUE_SIZE;
         next_queue = dma_read(current_queue, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+        if (next_queue != 0)
+            next_queue = s->esp->sm.addr + next_queue * sizeof(uint32_t); /* TODO: find a more elegant way to handle this */
         seq = dma_read(current_queue, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, seq), uint64_t);
         if (seq != (tail + 1)) {
             return false;
@@ -147,5 +149,7 @@ void sm_queue_pop(ESPAcceleratorState *s, uint64_t q) {
         dma_write(current_queue, offsetof(sm_queue_t, slot[tail_slot]) + offsetof(sm_queue_slot_t, seq), tail + SM_QUEUE_SIZE, uint64_t);
         dma_write(current_queue, offsetof(sm_queue_t, tail), tail + 1, uint64_t);
         current_queue = dma_read(current_queue, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+        if (current_queue != 0)
+            current_queue = s->esp->sm.addr + current_queue * sizeof(uint32_t); /* TODO: find a more elegant way to handle this */
     }
 }

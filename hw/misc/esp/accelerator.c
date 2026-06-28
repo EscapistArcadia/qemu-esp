@@ -134,6 +134,7 @@ static void check_next_context(ESPAcceleratorState *s, bool bias_switch)
             do {
                 dma_write(q, offsetof(sm_queue_t, stat), (uint64_t)QUEUE_AVAIL, uint64_t);
                 q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+                if (q != 0) q = sm_base + q * sizeof(uint32_t); /* TODO: find a more elegant way to handle this */
             } while (q != 0);
         }
         s->valid_queue_ptr     &= ~(1u << i);
@@ -166,6 +167,7 @@ static void check_next_context(ESPAcceleratorState *s, bool bias_switch)
                 break;
             }
             q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+            if (q != 0) q = sm_base + q * sizeof(uint32_t); /* TODO: find a more elegant way to handle this */
         } while (q != 0);
 
         if (queue_ready) {
@@ -173,6 +175,7 @@ static void check_next_context(ESPAcceleratorState *s, bool bias_switch)
             do {
                 dma_write(q, offsetof(sm_queue_t, stat), (uint64_t)QUEUE_BUSY, uint64_t);
                 q = dma_read(q, offsetof(sm_queue_t, next_queue_ptr), uint64_t);
+                if (q != 0) q = sm_base + q * sizeof(uint32_t); /* TODO: find a more elegant way to handle this */
             } while (q != 0);
             s->context_vruntime[i] = min_vruntime;
             s->valid_queue_ptr    |= (1u << i);
