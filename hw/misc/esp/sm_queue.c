@@ -90,7 +90,7 @@ void sm_queue_push(ESPAcceleratorState *s, uint64_t q, uint64_t entry) {
         }
         head = s->next_head_idx[i];
         head_slot = head % SM_QUEUE_SIZE;
-        dma_write(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, entry), entry, uint64_t);
+        dma_write(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, entry), s->sm_info_output_entry[i], uint64_t);
         dma_write(current_queue, offsetof(sm_queue_t, slot[head_slot]) + offsetof(sm_queue_slot_t, seq), head + 1, uint64_t);
     }
 }
