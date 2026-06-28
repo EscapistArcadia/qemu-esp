@@ -52,7 +52,7 @@ struct ESPAcceleratorState {
 typedef struct ESPAcceleratorState ESPAcceleratorState;
 DECLARE_INSTANCE_CHECKER(ESPAcceleratorState, ESP_ACCELERATOR, TYPE_ESP_ACCELERATOR)
 
-DeviceState *esp_accelerator_create(ESPSubsystemState *esp, const char *type, hwaddr mmio_base, uint64_t mmio_size);
+DeviceState *esp_accelerator_create(ESPSubsystemState *esp, ESPAccelerator *accel, hwaddr mmio_base, uint64_t mmio_size);
 
 void pick_context_rr(ESPAcceleratorState *s, bool bias_switch);
 void pick_context_fair(ESPAcceleratorState *s, bool bias_switch);

@@ -3,6 +3,7 @@
 #include "hw/misc/esp/regmap.h"
 #include "hw/misc/esp/helper/int.h"
 #include "hw/misc/esp/helper/dma.h"
+#include "hw/misc/esp/accelerators/template.h"
 
 #include "hw/misc/esp/sm_queue.h"
 
@@ -364,22 +365,20 @@ static const MemoryRegionOps esp_accelerator_mmio_ops = {
         memory_region_add_subregion(get_system_memory(), base, &mr); \
     } while (0)
 
-extern ESPAccelerator gemm_stratus_rr; /* TODO: generalize this so that we can support arbitrary accelerators */
-
-DeviceState *esp_accelerator_create(ESPSubsystemState *esp, const char *type, hwaddr mmio_base, uint64_t mmio_size) {
+DeviceState *esp_accelerator_create(ESPSubsystemState *esp, ESPAccelerator *accel, hwaddr mmio_base, uint64_t mmio_size) {
     DeviceState *dev = qdev_new(TYPE_ESP_ACCELERATOR);
     ESPAcceleratorState *s = ESP_ACCELERATOR(dev);
 
     s->esp = esp;
-    s->accel = &gemm_stratus_rr;
+    s->accel = accel;
 
     /* TODO: generate unique name */
     INIT_MMIO_REGION(s->mmio, "esp_accelerator", mmio_base, mmio_size);
 
     /* TODO: add return value check */
-    qemu_thread_create(&s->execution, type, esp_accelerator_execute, s, QEMU_THREAD_DETACHED);
+    qemu_thread_create(&s->execution, accel->type, esp_accelerator_execute, s, QEMU_THREAD_DETACHED);
 
-    /* TODO: create other threads */
+    /* TODO: create other threads: cycle counter, valid context monitor, etc. */
 
     return dev;
 }

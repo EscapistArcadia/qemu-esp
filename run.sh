@@ -333,7 +333,7 @@ fi
 # Generate DTB from DTS if necessary
 if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
     DTB=$(basename "$DTS" .dts).dtb
-    dtc -I dts -O dtb "$DTS" > "$DTB"
+    dtc -@ -I dts -O dtb "$DTS" > "$DTB"
 fi
 
 KERNEL_CMDLINE="console=ttyS0,115200"

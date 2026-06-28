@@ -27,6 +27,6 @@ DECLARE_INSTANCE_CHECKER(ESPSubsystemState, ESP_SUBSYSTEM, TYPE_ESP_SUBSYSTEM)
  * @return DeviceState* the base subsystem object pointer
  * @todo automate the address realization and memory region mapping based on the passed dtb or fdt
  */
-DeviceState *esp_subsystem_init(void);
+DeviceState *esp_subsystem_init(void *fdt);
 
 #endif

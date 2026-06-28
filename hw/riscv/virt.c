@@ -1625,7 +1625,7 @@ static void virt_machine_init(MachineState *machine)
     create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
     // create_unimplemented_device("esp_accel_reserved", 0xa0200000, 0x1fe00000);
     
-    esp_subsystem_init();
+    esp_subsystem_init(machine->fdt);
 }
 
 static void virt_machine_instance_finalize(Object *obj)
