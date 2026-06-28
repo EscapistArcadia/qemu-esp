@@ -1,7 +1,6 @@
 #include "hw/misc/esp/subsystem.h"
 
 #include <libfdt.h>
-#include <sched.h>
 
 #include "hw/misc/esp/accelerator.h"
 #include "hw/misc/esp/helper/int.h"
