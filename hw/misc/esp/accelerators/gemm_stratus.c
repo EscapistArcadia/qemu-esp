@@ -105,6 +105,8 @@ static void gemm_stratus_execute(ESPAcceleratorState *s, void *param) {
 }
 
 ESPAccelerator gemm_stratus_rr = {
+    .type = "gemm_stratus",
+
     .conf_size = sizeof(GemmStratusConf),
 
     .mmio_read = gemm_stratus_mmio_read,
@@ -115,6 +117,8 @@ ESPAccelerator gemm_stratus_rr = {
 };
 
 ESPAccelerator gemm_stratus_fair = {
+    .type = "gemm_stratus",
+
     .conf_size = sizeof(GemmStratusConf),
 
     .mmio_read = gemm_stratus_mmio_read,
@@ -123,3 +127,10 @@ ESPAccelerator gemm_stratus_fair = {
     .pick_context = pick_context_fair,
     .execute = gemm_stratus_execute,
 };
+
+static void gemm_stratus_register(void) {
+    /* TODO: check configuration, rr by default */
+    esp_accelerator_type_register(&gemm_stratus_rr);
+}
+
+type_init(gemm_stratus_register)
