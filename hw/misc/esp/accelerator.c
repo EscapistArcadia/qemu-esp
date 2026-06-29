@@ -11,7 +11,7 @@
 #define ESP_ACCELERATOR_MMIO_BASE (0x60010000)
 #define ESP_ACCELERATOR_MMIO_SIZE (0x100)
 
-#if 1
+#if 0
 #include "accelerator_mmio_verbose.inc"
 #else
 #define esp_accelerator_mmio_read_verbose(addr, size)
