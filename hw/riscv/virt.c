@@ -60,6 +60,8 @@
 #include "qapi/qapi-visit-common.h"
 #include "hw/virtio/virtio-iommu.h"
 #include "hw/uefi/var-service-api.h"
+#include "hw/misc/esp/subsystem.h"
+#include "hw/misc/unimp.h"
 
 /* KVM AIA only supports APLIC MSI. APLIC Wired is always emulated by QEMU. */
 static bool virt_use_kvm_aia_aplic_imsic(RISCVVirtAIAType aia_type)
@@ -81,27 +83,32 @@ static bool virt_aclint_allowed(void)
     return tcg_enabled() || qtest_enabled();
 }
 
+/* TODO: automate the generation of the virtual memory map in the socgen */
 static const MemMapEntry virt_memmap[] = {
     [VIRT_DEBUG] =        {        0x0,         0x100 },
     [VIRT_MROM] =         {     0x1000,        0xf000 },
     [VIRT_TEST] =         {   0x100000,        0x1000 },
     [VIRT_RTC] =          {   0x101000,        0x1000 },
-    [VIRT_CLINT] =        {  0x2000000,       0x10000 },
+    // [VIRT_CLINT] =        {  0x2000000,       0x10000 },
+    [VIRT_CLINT] =        {  0x2000000,       0xc0000 },
     [VIRT_ACLINT_SSWI] =  {  0x2F00000,        0x4000 },
     [VIRT_PCIE_PIO] =     {  0x3000000,       0x10000 },
     [VIRT_IOMMU_SYS] =    {  0x3010000,        0x1000 },
     [VIRT_PLATFORM_BUS] = {  0x4000000,     0x2000000 },
-    [VIRT_PLIC] =         {  0xc000000, VIRT_PLIC_SIZE(VIRT_CPUS_MAX * 2) },
+    // [VIRT_PLIC] =         {  0xc000000, VIRT_PLIC_SIZE(VIRT_CPUS_MAX * 2) },
+    [VIRT_PLIC] =         { 0x6c000000,     0x4000000 },
     [VIRT_APLIC_M] =      {  0xc000000, APLIC_SIZE(VIRT_CPUS_MAX) },
     [VIRT_APLIC_S] =      {  0xd000000, APLIC_SIZE(VIRT_CPUS_MAX) },
-    [VIRT_UART0] =        { 0x10000000,         0x100 },
+    // [VIRT_UART0] =        { 0x10000000,         0x100 },
+    [VIRT_UART0] =        { 0x60000100,         0x100 },
     [VIRT_VIRTIO] =       { 0x10001000,        0x1000 },
     [VIRT_FW_CFG] =       { 0x10100000,          0x18 },
     [VIRT_FLASH] =        { 0x20000000,     0x4000000 },
     [VIRT_IMSIC_M] =      { 0x24000000, VIRT_IMSIC_MAX_SIZE },
     [VIRT_IMSIC_S] =      { 0x28000000, VIRT_IMSIC_MAX_SIZE },
     [VIRT_PCIE_ECAM] =    { 0x30000000,    0x10000000 },
-    [VIRT_PCIE_MMIO] =    { 0x40000000,    0x40000000 },
+    // [VIRT_PCIE_MMIO] =    { 0x40000000,    0x40000000 },
+    [VIRT_PCIE_MMIO] =    { 0x40000000,    0x20000000 },
     [VIRT_DRAM] =         { 0x80000000,           0x0 },
 };
 
@@ -1613,6 +1620,12 @@ static void virt_machine_init(MachineState *machine)
 
     s->machine_done.notify = virt_machine_done;
     qemu_add_machine_init_done_notifier(&s->machine_done);
+
+    // create_unimplemented_device("esp_greth_unimp", 0xa0000000, 0x200000);
+    create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
+    // create_unimplemented_device("esp_accel_reserved", 0xa0200000, 0x1fe00000);
+    
+    esp_subsystem_init(machine->fdt);
 }
 
 static void virt_machine_instance_finalize(Object *obj)

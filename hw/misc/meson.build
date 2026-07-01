@@ -168,3 +168,13 @@ system_ss.add(when: 'CONFIG_SBSA_REF', if_true: files('sbsa_ec.c'))
 
 # HPPA devices
 system_ss.add(when: 'CONFIG_LASI', if_true: files('lasi.c'))
+
+system_ss.add(when: 'CONFIG_ESP_FPGA', if_true: files(
+  'esp/subsystem.c',
+  'esp/accelerator.c',
+  'esp/sm_queue.c',
+  'esp/type.c',
+  'esp/accelerators/gemm_stratus.c',
+  'esp/accelerators/conv2d_stratus.c',
+  'esp/accelerators/vector_stratus.c',
+))
