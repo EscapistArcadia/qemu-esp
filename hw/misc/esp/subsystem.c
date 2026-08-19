@@ -1,5 +1,6 @@
 #include "hw/misc/esp/subsystem.h"
 
+#include <stdbool.h>
 #include <libfdt.h>
 
 #include "hw/misc/esp/accelerator.h"
@@ -7,6 +8,10 @@
 #include "system/address-spaces.h"
 #include "qapi/error.h"
 #include "qemu/error-report.h" /* TODO: refactor include to only include high-level header files */
+
+#include "system/system.h"
+#include "hw/char/grlib_uart.h"
+#include "hw/core/qdev-properties.h"
 
 #define ESP_ACCELERATOR_RESERVED "accelerator-reserved"
 
@@ -33,22 +38,51 @@ static int fdt_get_prop_symbol(const void *fdt, int symbol, const char *name) {
 
 static void fdt_parse_region(const void *fdt, int offset, hwaddr *base, uint64_t *size) {
     int reg_len;
-    const fdt32_t *reg = fdt_getprop(fdt, offset, "reg", &reg_len);
+    const void *reg = fdt_getprop(fdt, offset, "reg", &reg_len);
     if (!reg) {
         error_report("Property 'reg' not found in the device tree node at offset %d", offset);
         exit(1);
     }
 
-    if (reg_len < 2 * sizeof(fdt32_t)) {
+    if (reg_len < (sizeof(fdt64_t) << 1)) { /* 2 qwords, one for base address, one for size */
         error_report("Property 'reg' is too short in the device tree node at offset %d", offset);
         exit(1);
     }
 
-    *base = MAKEDWORD(fdt32_to_cpu(reg[1]), fdt32_to_cpu(reg[0])); /* TODO: more flexible, and remove mem access (fdt_address_cells, fdt_size_cells) */
-    *size = MAKEDWORD(fdt32_to_cpu(reg[3]), fdt32_to_cpu(reg[2]));
+    if (base) {
+        *base = fdt64_ld(reg);
+    }
+    if (size) {
+        // *size = fdt64_ld(reg + 1);
+        *size = fdt64_ld(reg + sizeof(fdt64_t)); /* I spent three hours on this T_T */
+    }
 }
 
-DeviceState *esp_subsystem_init(void *fdt) {
+static void esp_gaisler_uart_init(ESPSubsystemState *s, void *mmio_irqchip, void *fdt, int uart_offset) {
+    SysBusDevice *sysbus_gaisler;
+    hwaddr mr_base;
+    const void *irq_pos;
+    int irq_len;
+
+    s->gaisler_uart = qdev_new(TYPE_GRLIB_APB_UART);
+    sysbus_gaisler = SYS_BUS_DEVICE(s->gaisler_uart);
+
+    fdt_parse_region(fdt, uart_offset, &mr_base, NULL);
+
+    irq_pos = fdt_getprop(fdt, uart_offset, "interrupts", &irq_len);
+    if (irq_pos == NULL) {
+        error_report("Property 'interrupts' not found in the device tree node at offset %d", uart_offset);
+        exit(1);
+    }
+
+    /* Reference: hw/sparc/leon3.c:426 */
+    qdev_prop_set_chr(s->gaisler_uart, "chrdev", serial_hd(0));
+    sysbus_realize_and_unref(sysbus_gaisler, &error_fatal);
+    sysbus_mmio_map(sysbus_gaisler, 0, mr_base);
+    sysbus_connect_irq(sysbus_gaisler, 0, qdev_get_gpio_in(mmio_irqchip, fdt32_ld(irq_pos)));
+}
+
+DeviceState *esp_subsystem_init(void *fdt, void *mmio_irqchip) {
     DeviceState *dev = qdev_new(TYPE_ESP_SUBSYSTEM);
     ESPSubsystemState *s = ESP_SUBSYSTEM(dev);
 
@@ -58,6 +92,7 @@ DeviceState *esp_subsystem_init(void *fdt) {
     const char *accel_name, *at_pos;
     hwaddr mr_base;
     uint64_t mr_size;
+    bool realized_uart = false;
 
     QLIST_INIT(&s->accelerators);
 
@@ -87,6 +122,12 @@ DeviceState *esp_subsystem_init(void *fdt) {
         at_pos = strchr(accel_name, '@');
         if (at_pos) { /* TODO: find a more elegant way to handle this */
             accel_name = strndup(accel_name, at_pos - accel_name);
+        }
+
+        /* Since uart shares the same format as accelerators, we handle uart here too */
+        if (unlikely(realized_uart == false && strcmp(accel_name, "uart") == 0)) {
+            esp_gaisler_uart_init(s, mmio_irqchip, fdt, soc_offset);
+            realized_uart = true;
         }
 
         accel = esp_accelerator_type(accel_name);

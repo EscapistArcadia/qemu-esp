@@ -11,6 +11,7 @@ QEMU_NOGRAPHIC=0
 RUN_WITH_GDB=0
 DEBUG_LINUX=0
 QEMU_GUEST_LINUX=0
+DEFAULT_DTS=1
 
 QEMU_ROOT="$PWD"
 RISCV_TOOLCHAIN_PATH="$HOME/riscv"
@@ -71,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dts)
             if [[ $# -gt 1 ]]; then
+                DEFAULT_DTS=0
                 if [[ -v DTB ]]; then
                     echo "Warning: --dtb option overrides --dts option. Using DTB file: $DTB"
                 else
@@ -88,6 +90,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dtb)
             if [[ $# -gt 1 ]]; then
+                DEFAULT_DTS=0
                 DTB=$(realpath "$2")
                 if [[ -v DTS ]]; then
                     unset DTS
@@ -170,14 +173,21 @@ ESP_SYSROOT_ARIANE="$ESP_SOC/soft-build/ariane/sysroot"
 ESP_LINUX_ARIANE_CONFIG="$ESP_LINUX_ARIANE_BUILD/.config"
 ESP_LINUX_IMAGE="$ESP_LINUX_ARIANE_BUILD/arch/riscv/boot/Image"
 ESP_LINUX_VMLINUX="$ESP_LINUX_ARIANE_BUILD/vmlinux"
+ESP_OPENSBI_ROOT="$ESP_ROOT/soft/ariane/opensbi"
 ESP_OPENSBI_BUILD="$ESP_SOC/soft-build/ariane/opensbi-build"
-ESP_OPENSBI_FIRMWARE="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
+ESP_OPENSBI_FIRMWARE_ELF="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.elf"
+ESP_OPENSBI_FIRMWARE_BIN="$ESP_OPENSBI_BUILD/platform/esp-fpga/firmware/fw_payload.bin"
 ESP_FILESYS_LIST="$ESP_SOC/soft-build/ariane/sysroot.files"
 ESP_FILESYS_IMAGE="$ESP_SOC/soft-build/ariane/sysroot.cpio"
 VIRTUAL_ACC_APP_ROOT="$ESP_ROOT/soft/ariane/virtual-acc-app"
 VIRTUAL_ACC_APP_MAKEFILE="$VIRTUAL_ACC_APP_ROOT/Makefile"
 VIRTUAL_ACC_APP_EXAMPLES="$VIRTUAL_ACC_APP_ROOT/examples"
 # ESP_DTB="$QEMU_ROOT/riscv.dtb"
+
+if [[ $DEFAULT_DTS -eq 1 ]]; then
+    DTS="$ESP_SOC/socgen/esp/riscv.dts"
+    echo "Using default DTS file: $DTS"
+fi
 
 # Runs RISCV GDB to debug Linux running on QEMU.
 if [[ $QEMU_GUEST_LINUX -eq 1 ]]; then
@@ -276,9 +286,22 @@ fi
 if [[ $REBUILD_FILESYSTEM -eq 1 ]] || [[ ! -f "$ESP_FILESYS_IMAGE" ]]; then
     pushd "$ESP_SOC"
     
-    rm "$ESP_FILESYS_LIST" "$ESP_FILESYS_IMAGE" || true
+    rm "$ESP_FILESYS_LIST" "$ESP_FILESYS_IMAGE" "$ESP_OPENSBI_FIRMWARE_BIN" || true
     make $ESP_LINUX_VMLINUX -j `nproc`
+    # make $ESP_OPENSBI_FIRMWARE_BIN -j `nproc`
 
+    # After I start using ESP-provided OpenSBI, I found that I need to rebuild
+    # OpenSBI image every time I rebuild Linux image, otherwise the FS update
+    # will not be reflected after the kernel boot.
+    make distclean -C $ESP_OPENSBI_ROOT
+    make -C $ESP_OPENSBI_ROOT \
+            CROSS_COMPILE=riscv64-unknown-linux-gnu- \
+            BASE_FREQ=78 \
+            PLATFORM=esp-fpga \
+            FW_PAYLOAD_PATH=$ESP_LINUX_IMAGE \
+            O=$ESP_OPENSBI_BUILD -j `nproc`
+            # Parameters are board-specific and extracted from the ESP build pipeline.
+    
     popd
 fi
 
@@ -292,13 +315,14 @@ if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$
         "--file" "$ESP_LINUX_ARIANE_CONFIG"
 
         # Enable NS16550A UART driver for console output inside QEMU
-        "-e" "SERIAL_8250"
-        "-e" "SERIAL_8250_CONSOLE"
-        "-e" "SERIAL_OF_PLATFORM"
-        "-e" "SERIAL_EARLYCON"
-        "-e" "SERIAL_EARLYCON_RISCV_SBI"
-        "-e" "HVC_DRIVER"
-        "-e" "HVC_RISCV_SBI"
+        # Update: But now we no longer need this.
+        # "-e" "SERIAL_8250"
+        # "-e" "SERIAL_8250_CONSOLE"
+        # "-e" "SERIAL_OF_PLATFORM"
+        # "-e" "SERIAL_EARLYCON"
+        # "-e" "SERIAL_EARLYCON_RISCV_SBI"
+        # "-e" "HVC_DRIVER"
+        # "-e" "HVC_RISCV_SBI"
 
         # Enable GDB scripts and debug info for better debugging experience
         "-e" "DEBUG_INFO"
@@ -307,6 +331,8 @@ if [[ $REBUILD_LINUX -eq 1 ]]  || [[ $CLEAN_REBUILD_LINUX -eq 1 ]] || [[ ! -f "$
         "-e" "KALLSYMS"
         "-e" "KALLSYMS_ALL"
     )
+
+    echo "${CONFIG_ARGS[@]}"
 
     if [[ $CLEAN_REBUILD_LINUX -eq 1 ]]; then
         BUILD_LINUX_TWICE=1
@@ -336,7 +362,7 @@ if [[ -v DTS ]] && [[ ! -v DTB ]] && [[ -f "$DTS" ]]; then
     dtc -@ -I dts -O dtb "$DTS" > "$DTB"
 fi
 
-KERNEL_CMDLINE="console=ttyS0,115200"
+KERNEL_CMDLINE="console=ttyS0,38400" # match the baud rate
 if [[ ${#GUEST_LINUX_COMMANDS[@]} -gt 0 ]]; then
     AUTORUN_STR="${GUEST_LINUX_COMMANDS[0]}"
     for cmd in "${GUEST_LINUX_COMMANDS[@]:1}"; do
@@ -362,8 +388,9 @@ HOST_QEMU_ARGS+=(
     "-machine" "virt"
     "-m" "1G"
     "-smp" "1"
-    "-bios" "default"
-    # "-bios" "$ESP_OPENSBI_FIRMWARE"
+    "-cpu" "rv64,pmp=false" # What is pmp and why do we need to disable it?
+    # "-bios" "default"
+    "-bios" "$ESP_OPENSBI_FIRMWARE_ELF" # Finally, we use everything provided by ESP
     "-kernel" "$ESP_LINUX_IMAGE"
     # "-initrd" "$ESP_FILESYS_IMAGE"
     "-dtb" "$DTB"
