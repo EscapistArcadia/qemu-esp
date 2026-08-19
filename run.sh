@@ -11,6 +11,7 @@ QEMU_NOGRAPHIC=0
 RUN_WITH_GDB=0
 DEBUG_LINUX=0
 QEMU_GUEST_LINUX=0
+DEFAULT_DTS=1
 
 QEMU_ROOT="$PWD"
 RISCV_TOOLCHAIN_PATH="$HOME/riscv"
@@ -71,6 +72,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dts)
             if [[ $# -gt 1 ]]; then
+                DEFAULT_DTS=0
                 if [[ -v DTB ]]; then
                     echo "Warning: --dtb option overrides --dts option. Using DTB file: $DTB"
                 else
@@ -88,6 +90,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dtb)
             if [[ $# -gt 1 ]]; then
+                DEFAULT_DTS=0
                 DTB=$(realpath "$2")
                 if [[ -v DTS ]]; then
                     unset DTS
@@ -180,6 +183,11 @@ VIRTUAL_ACC_APP_ROOT="$ESP_ROOT/soft/ariane/virtual-acc-app"
 VIRTUAL_ACC_APP_MAKEFILE="$VIRTUAL_ACC_APP_ROOT/Makefile"
 VIRTUAL_ACC_APP_EXAMPLES="$VIRTUAL_ACC_APP_ROOT/examples"
 # ESP_DTB="$QEMU_ROOT/riscv.dtb"
+
+if [[ $DEFAULT_DTS -eq 1 ]]; then
+    DTS="$ESP_SOC/socgen/esp/riscv.dts"
+    echo "Using default DTS file: $DTS"
+fi
 
 # Runs RISCV GDB to debug Linux running on QEMU.
 if [[ $QEMU_GUEST_LINUX -eq 1 ]]; then
