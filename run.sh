@@ -12,6 +12,7 @@ RUN_WITH_GDB=0
 DEBUG_LINUX=0
 QEMU_GUEST_LINUX=0
 DEFAULT_DTS=1
+CPU_COUNT=1
 
 QEMU_ROOT="$PWD"
 RISCV_TOOLCHAIN_PATH="$HOME/riscv"
@@ -104,6 +105,15 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             shift 2
+            ;;
+        --cpu)
+            if [[ $# -gt 1 ]]; then
+                CPU_COUNT="$2"
+                shift 2
+            else
+                echo "Error: --cpu option requires an argument."
+                exit 1
+            fi
             ;;
         --rebuild-qemu)
             REBUILD_QEMU=1
@@ -385,9 +395,10 @@ fi
 
 HOST_QEMU_ARGS+=(
     "$QEMU_EXECUTABLE"
+    "-accel" "tcg,thread=multi"
     "-machine" "virt"
     "-m" "1G"
-    "-smp" "1"
+    "-smp" "$CPU_COUNT" # TODO: automate the CPU count based on the DTS/DTB file
     "-cpu" "rv64,pmp=false" # What is pmp and why do we need to disable it?
     # "-bios" "default"
     "-bios" "$ESP_OPENSBI_FIRMWARE_ELF" # Finally, we use everything provided by ESP
