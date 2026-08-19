@@ -33,19 +33,24 @@ static int fdt_get_prop_symbol(const void *fdt, int symbol, const char *name) {
 
 static void fdt_parse_region(const void *fdt, int offset, hwaddr *base, uint64_t *size) {
     int reg_len;
-    const fdt32_t *reg = fdt_getprop(fdt, offset, "reg", &reg_len);
+    const void *reg = fdt_getprop(fdt, offset, "reg", &reg_len);
     if (!reg) {
         error_report("Property 'reg' not found in the device tree node at offset %d", offset);
         exit(1);
     }
 
-    if (reg_len < 2 * sizeof(fdt32_t)) {
+    if (reg_len < (sizeof(fdt64_t) << 1)) { /* 2 qwords, one for base address, one for size */
         error_report("Property 'reg' is too short in the device tree node at offset %d", offset);
         exit(1);
     }
 
-    *base = MAKEDWORD(fdt32_to_cpu(reg[1]), fdt32_to_cpu(reg[0])); /* TODO: more flexible, and remove mem access (fdt_address_cells, fdt_size_cells) */
-    *size = MAKEDWORD(fdt32_to_cpu(reg[3]), fdt32_to_cpu(reg[2]));
+    if (base) {
+        *base = fdt64_ld(reg);
+    }
+    if (size) {
+        *size = fdt64_ld(reg + 1);
+    }
+}
 }
 
 DeviceState *esp_subsystem_init(void *fdt) {
