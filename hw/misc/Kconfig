@@ -261,5 +261,6 @@ config ESP_FPGA
     bool
     default y
     depends on RISCV_VIRT
+    select GRLIB
 
 source macio/Kconfig

@@ -91,7 +91,7 @@ enum {
 };
 
 enum {
-    UART0_IRQ = 10,
+    UART0_IRQ = 3, /* TODO: makes fdt's value effective everywhere */
     RTC_IRQ = 11,
     VIRTIO_IRQ = 1, /* 1 to 8 */
     VIRTIO_COUNT = 8,

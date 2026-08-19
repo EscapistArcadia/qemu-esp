@@ -1570,9 +1570,10 @@ static void virt_machine_init(MachineState *machine)
 
     create_platform_bus(s, mmio_irqchip);
 
-    serial_mm_init(system_memory, s->memmap[VIRT_UART0].base,
-        0, qdev_get_gpio_in(mmio_irqchip, UART0_IRQ), 399193,
-        serial_hd(0), DEVICE_LITTLE_ENDIAN);
+    /* For the ESP platform, we setup our own UART, defined in the FDT */
+    // serial_mm_init(system_memory, s->memmap[VIRT_UART0].base,
+    //     0, qdev_get_gpio_in(mmio_irqchip, UART0_IRQ), 399193,
+    //     serial_hd(0), DEVICE_LITTLE_ENDIAN);
 
     sysbus_create_simple("goldfish_rtc", s->memmap[VIRT_RTC].base,
         qdev_get_gpio_in(mmio_irqchip, RTC_IRQ));
@@ -1624,8 +1625,8 @@ static void virt_machine_init(MachineState *machine)
     // create_unimplemented_device("esp_greth_unimp", 0xa0000000, 0x200000);
     create_unimplemented_device("esp_eth_unimp", 0x60080000, 0x10000);
     // create_unimplemented_device("esp_accel_reserved", 0xa0200000, 0x1fe00000);
-    
-    esp_subsystem_init(machine->fdt);
+
+    esp_subsystem_init(machine->fdt, mmio_irqchip);
 }
 
 static void virt_machine_instance_finalize(Object *obj)
