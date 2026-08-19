@@ -53,7 +53,8 @@ static void fdt_parse_region(const void *fdt, int offset, hwaddr *base, uint64_t
         *base = fdt64_ld(reg);
     }
     if (size) {
-        *size = fdt64_ld(reg + 1);
+        // *size = fdt64_ld(reg + 1);
+        *size = fdt64_ld(reg + sizeof(fdt64_t)); /* I spent three hours on this T_T */
     }
 }
 
